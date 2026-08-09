@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { InlineMath } from "react-katex";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function Home() {
   return (
@@ -18,9 +19,9 @@ export default function Home() {
           וחולשה, ובונה עבורכם תוכנית תרגול אישית — כמותי, מילולי ואנגלית.
         </p>
 
-        <Button size="lg" className="ms-0">
+        <Link href="/practice/quant" className={buttonVariants({ size: "lg" })}>
           התחילו לתרגל
-        </Button>
+        </Link>
       </div>
 
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-start shadow-sm">
@@ -29,9 +30,9 @@ export default function Home() {
         </p>
         <p className="mb-4 text-base text-card-foreground">
           מהו הפתרון הכללי של משוואה ריבועית מהצורה{" "}
-          <span dir="ltr" className="inline-block">
+          <bdi dir="ltr" className="inline-block">
             <InlineMath math="ax^2 + bx + c = 0" />
-          </span>
+          </bdi>
           ?
         </p>
         <div dir="ltr" className="rounded-lg bg-muted px-4 py-3 text-start">

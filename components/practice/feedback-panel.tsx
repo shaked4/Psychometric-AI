@@ -1,0 +1,106 @@
+"use client";
+
+import { useState } from "react";
+import { CheckCircle2, Sparkles, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { MathText } from "@/components/practice/math-text";
+import type { SelfReportedError } from "@/types";
+
+const ERROR_REASONS: { value: SelfReportedError; label: string }[] = [
+  { value: "careless", label: "שגיאת תשומת לב" },
+  { value: "didnt_know", label: "חוסר ידע בחומר" },
+  { value: "ran_out_of_time", label: "לחץ זמן" },
+];
+
+interface FeedbackPanelProps {
+  isCorrect: boolean;
+  explanation: string;
+  selfReportedError: SelfReportedError | null;
+  onSelectErrorReason: (reason: SelfReportedError) => void;
+}
+
+export function FeedbackPanel({
+  isCorrect,
+  explanation,
+  selfReportedError,
+  onSelectErrorReason,
+}: FeedbackPanelProps) {
+  const [explainDifferently, setExplainDifferently] = useState(false);
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-xl border p-5",
+        isCorrect
+          ? "border-green-600/30 bg-green-500/5"
+          : "border-red-600/30 bg-red-500/5"
+      )}
+    >
+      <div className="flex items-center gap-2 text-base font-semibold">
+        {isCorrect ? (
+          <CheckCircle2 className="size-5 text-green-600" />
+        ) : (
+          <XCircle className="size-5 text-red-600" />
+        )}
+        <span
+          className={
+            isCorrect
+              ? "text-green-700 dark:text-green-400"
+              : "text-red-700 dark:text-red-400"
+          }
+        >
+          {isCorrect ? "תשובה נכונה!" : "תשובה שגויה"}
+        </span>
+      </div>
+
+      <div className="text-sm leading-relaxed text-card-foreground">
+        <MathText text={explanation} />
+      </div>
+
+      {!isCorrect && (
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-medium text-muted-foreground">
+            מה גרם לטעות, לדעתך?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {ERROR_REASONS.map((reason) => (
+              <button
+                key={reason.value}
+                type="button"
+                onClick={() => onSelectErrorReason(reason.value)}
+                className={cn(
+                  "rounded-full border px-3.5 py-1.5 text-sm transition",
+                  selfReportedError === reason.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {reason.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-border pt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setExplainDifferently(true)}
+        >
+          <Sparkles className="size-4" />
+          הסבר בדרך אחרת
+        </Button>
+
+        {explainDifferently && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            🔧 הסבר חלופי מבוסס AI יהיה זמין כאן בקרוב — זוהי נקודת החיבור למאמן
+            ה-AI האישי.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
