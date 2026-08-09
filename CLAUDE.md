@@ -57,6 +57,20 @@ and converses; the stats layer decides.
 
 Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
 
+## AI tutor integration
+
+`app/api/tutor/route.ts` is the single grounding point for all Claude calls (used by both
+the "הסבר בדרך אחרת" button and the tutor chat drawer). Every request is grounded with the
+full question context (body, choices, correct answer, official explanation, the student's
+chosen answer, and self-reported error reason) via the system prompt — the model never
+answers from a bare question with no context.
+
+- **Model**: `claude-sonnet-5`. If asked to change models, check `shared/models.md`-style
+  guidance rather than assuming an older name still resolves — retired model IDs 404.
+- **Offline/no-key fallback**: if `ANTHROPIC_API_KEY` is unset (see `.env.local.example`) or
+  the API call fails for any reason, the route returns a static Hebrew fallback message
+  instead of erroring, so the practice flow never breaks because of the AI layer.
+
 ## Coding rules
 
 - **RTL-first**: the app defaults to `dir="rtl"` and `lang="he"`. Build and test layouts in

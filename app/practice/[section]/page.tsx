@@ -9,6 +9,7 @@ import { PracticeHeader } from "@/components/practice/practice-header";
 import { QuestionCard } from "@/components/practice/question-card";
 import { AnswerOptions } from "@/components/practice/answer-options";
 import { FeedbackPanel } from "@/components/practice/feedback-panel";
+import { TutorChatDrawer } from "@/components/practice/tutor-chat-drawer";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import type { Section, SelfReportedError } from "@/types";
@@ -127,8 +128,10 @@ export default function PracticeSessionPage() {
           onSelect={handleSelect}
         />
 
-        {answered && (
+        {selected !== null && (
           <FeedbackPanel
+            question={currentQuestion}
+            chosenAnswer={selected}
             isCorrect={isCorrect}
             explanation={currentQuestion.explanation}
             selfReportedError={errorReason}
@@ -147,6 +150,13 @@ export default function PracticeSessionPage() {
           </Button>
         )}
       </main>
+
+      <TutorChatDrawer
+        key={currentQuestion.id}
+        question={currentQuestion}
+        chosenAnswer={selected}
+        selfReportedError={errorReason}
+      />
     </div>
   );
 }

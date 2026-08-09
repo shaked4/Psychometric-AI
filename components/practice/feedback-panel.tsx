@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
-import type { SelfReportedError } from "@/types";
+import type { Question, SelfReportedError } from "@/types";
 
 const ERROR_REASONS: { value: SelfReportedError; label: string }[] = [
   { value: "careless", label: "שגיאת תשומת לב" },
@@ -14,6 +14,8 @@ const ERROR_REASONS: { value: SelfReportedError; label: string }[] = [
 ];
 
 interface FeedbackPanelProps {
+  question: Question;
+  chosenAnswer: number;
   isCorrect: boolean;
   explanation: string;
   selfReportedError: SelfReportedError | null;
@@ -21,12 +23,47 @@ interface FeedbackPanelProps {
 }
 
 export function FeedbackPanel({
+  question,
+  chosenAnswer,
   isCorrect,
   explanation,
   selfReportedError,
   onSelectErrorReason,
 }: FeedbackPanelProps) {
-  const [explainDifferently, setExplainDifferently] = useState(false);
+  const [aiReply, setAiReply] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleExplainDifferently() {
+    setLoading(true);
+    setAiReply(null);
+    try {
+      const res = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: {
+            section: question.section,
+            topic: question.topic,
+            subtopic: question.subtopic,
+            body: question.body,
+            passage: question.passage,
+            choices: question.choices,
+            correctAnswer: question.correctAnswer,
+            explanation: question.explanation,
+          },
+          studentAnswer: chosenAnswer,
+          selfReportedError,
+          messages: [{ role: "user", content: "תסביר לי את זה בדרך אחרת, בבקשה." }],
+        }),
+      });
+      const data = await res.json();
+      setAiReply(data.reply ?? "אירעה שגיאה בטעינת ההסבר. נסו שוב מאוחר יותר.");
+    } catch {
+      setAiReply("אירעה שגיאה בטעינת ההסבר. נסו שוב מאוחר יותר.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div
@@ -88,17 +125,24 @@ export function FeedbackPanel({
           variant="outline"
           size="sm"
           className="gap-1.5"
-          onClick={() => setExplainDifferently(true)}
+          onClick={handleExplainDifferently}
+          disabled={loading}
         >
           <Sparkles className="size-4" />
           הסבר בדרך אחרת
         </Button>
 
-        {explainDifferently && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            🔧 הסבר חלופי מבוסס AI יהיה זמין כאן בקרוב — זוהי נקודת החיבור למאמן
-            ה-AI האישי.
-          </p>
+        {loading && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            חושב על דרך הסברה טובה יותר...
+          </div>
+        )}
+
+        {aiReply && !loading && (
+          <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
+            <MathText text={aiReply} />
+          </div>
         )}
       </div>
     </div>
