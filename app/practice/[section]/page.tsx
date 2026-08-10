@@ -77,7 +77,10 @@ export default function PracticeSessionPage() {
   const isLastQuestion = currentIndex === questions.length - 1;
   const answered = selected !== null;
   const isCorrect = answered && selected === currentQuestion.correctAnswer;
-  const canProceed = answered && (isCorrect || errorReason !== null);
+  // Selecting a self-reported error reason is encouraged (see FeedbackPanel)
+  // but never required to advance — it must not be able to strand the
+  // student on a question they've already answered.
+  const canProceed = answered;
 
   function handleSelect(index: number) {
     answerTimeTakenRef.current = Math.max(
