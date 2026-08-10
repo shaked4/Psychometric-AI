@@ -8,7 +8,12 @@ const NAV_ITEMS = [
   { href: "/", label: "בית", match: (p: string) => p === "/" },
   { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
   { href: "/history", label: "תחקור שאלות", match: (p: string) => p.startsWith("/history") },
-  { href: "/practice/quant", label: "תרגול", match: (p: string) => p.startsWith("/practice") },
+  {
+    href: "/practice/quant",
+    label: "תרגול",
+    match: (p: string) => p.startsWith("/practice") && !p.startsWith("/practice/custom"),
+  },
+  { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
 ];
 
 export function NavBar() {
