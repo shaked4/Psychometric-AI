@@ -1,6 +1,7 @@
 "use client";
 
-import { SignInButton, UserButton, useAuth } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@clerk/nextjs";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 
 export function ClerkAuthSection() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -10,17 +11,8 @@ export function ClerkAuthSection() {
   }
 
   if (isSignedIn) {
-    return <UserButton />;
+    return <UserButton showName />;
   }
 
-  return (
-    <SignInButton mode="modal">
-      <button
-        type="button"
-        className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
-      >
-        התחברות
-      </button>
-    </SignInButton>
-  );
+  return <GoogleSignInButton />;
 }

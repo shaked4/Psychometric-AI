@@ -116,7 +116,31 @@ answers from a bare question with no context.
 - **NavBar auth UI**: this Clerk version does not export `<SignedIn>`/`<SignedOut>` — the
   signed-in/out split is done manually via `useAuth()` in
   `components/auth/clerk-auth-section.tsx` (rendered when `CLERK_ENABLED`), falling back to
-  `components/auth/guest-mode-badge.tsx` ("מצב אורח / מקומי") otherwise.
+  `components/auth/guest-mode-badge.tsx` ("מצב אורח / מקומי") otherwise. Signed-in state shows
+  `<UserButton showName />`; signed-out shows `components/auth/google-sign-in-button.tsx`.
+- **Google OAuth**: `GoogleSignInButton` is a one-click trigger — `useSignIn().signIn.sso({
+  strategy: "oauth_google", redirectCallbackUrl: "/sso-callback", redirectUrl: "/dashboard"
+  })` — that bypasses Clerk's full `<SignIn/>` form. This SDK version's `useSignIn()` returns
+  the newer Signals-based Future API (`{ signIn, fetchStatus }`, `signIn.sso(...)`), not the
+  older `{ isLoaded, signIn }` shape with `signIn.authenticateWithRedirect(...)` — verified
+  against the installed `.d.ts` files after `npm run build`'s TypeScript pass caught the
+  mismatch against a first draft written from memory. Its redirect completes at
+  `app/sso-callback/page.tsx`, which mounts
+  `<AuthenticateWithRedirectCallback />`. Dedicated `/sign-in` and `/sign-up` catch-all routes
+  (`app/sign-in/[[...sign-in]]`, `app/sign-up/[[...sign-up]]`) render Clerk's full `<SignIn/>`/
+  `<SignUp/>` components — these also offer Google (plus any other method enabled in the
+  project) and are where `GoogleSignInButton` sends users if the direct redirect itself fails
+  to start. All three routes render `components/auth/auth-unavailable.tsx` instead of the
+  Clerk component when `CLERK_ENABLED` is false, since navigating to them directly is possible
+  even though the NavBar never links there in that state. **Actually enabling Google is a
+  one-time step in the Clerk Dashboard** (Configure → SSO Connections) — no amount of code
+  here turns it on; this app only calls the standard `oauth_google` strategy Clerk exposes
+  once a project has it configured.
+- **Localization**: `components/auth/clerk-auth-provider.tsx` passes `localization={heIL}`
+  (`@clerk/localizations`) to `<ClerkProvider>`, translating Clerk's own UI text (forms,
+  `UserButton` menu) to Hebrew, plus a light `appearance.variables` nudge toward this app's
+  near-black primary and Rubik font — deliberately just the documented `variables` API, not
+  hand-overridden `elements` selectors, which drift more across Clerk versions.
 - **Cloud persistence**: Supabase (`@supabase/supabase-js`), but **never written to directly
   from the browser**. The `attempts` table (`supabase/schema.sql`) has Row Level Security
   enabled with zero policies, making it unreachable via the public anon key under any
