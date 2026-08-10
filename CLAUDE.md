@@ -37,7 +37,9 @@ and converses; the stats layer decides.
   so layouts flip correctly between RTL (Hebrew) and LTR (English/math content)
 - **UI components**: shadcn/ui
 - **Math rendering**: KaTeX via `react-katex`
-- **Backend/DB/Auth/Storage**: Supabase (Postgres, Auth, Storage)
+- **Auth**: Clerk (`@clerk/nextjs`)
+- **Backend/DB/Storage**: Supabase (Postgres, Storage) — see "Auth & cloud sync architecture"
+  below for why Supabase Auth itself isn't used
 - **AI**: Claude API (Anthropic) — tutor chat and learner-profile narrative generation
 - **Hosting**: Vercel
 
@@ -70,6 +72,38 @@ answers from a bare question with no context.
 - **Offline/no-key fallback**: if `ANTHROPIC_API_KEY` is unset (see `.env.local.example`) or
   the API call fails for any reason, the route returns a static Hebrew fallback message
   instead of erroring, so the practice flow never breaks because of the AI layer.
+
+## Auth & cloud sync architecture
+
+- **Auth**: Clerk (`@clerk/nextjs`). `middleware.ts` only calls `clerkMiddleware()` when both
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are set; otherwise it's a plain
+  passthrough. `components/auth/clerk-auth-provider.tsx` mirrors this at the React level: it
+  only mounts `<ClerkProvider>` when `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is present
+  (`lib/config.ts`'s `CLERK_ENABLED`), so `useAuth()`-based components are never rendered
+  inside a Clerk context that doesn't exist.
+- **NavBar auth UI**: this Clerk version does not export `<SignedIn>`/`<SignedOut>` — the
+  signed-in/out split is done manually via `useAuth()` in
+  `components/auth/clerk-auth-section.tsx` (rendered when `CLERK_ENABLED`), falling back to
+  `components/auth/guest-mode-badge.tsx` ("מצב אורח / מקומי") otherwise.
+- **Cloud persistence**: Supabase (`@supabase/supabase-js`), but **never written to directly
+  from the browser**. The `attempts` table (`supabase/schema.sql`) has Row Level Security
+  enabled with zero policies, making it unreachable via the public anon key under any
+  circumstance. All writes go through `app/api/sync/push/route.ts`, which verifies the
+  caller's Clerk session server-side via `auth()` and then writes using the service-role key
+  (`lib/supabase-server.ts`, `SUPABASE_SERVICE_ROLE_KEY`, server-only), which bypasses RLS by
+  design. This avoids needing to design and audit RLS policies for the MVP while keeping the
+  table fully closed to clients.
+- **Sync mechanism**: `components/auth/cloud-sync-bridge.tsx` is mounted once at the root
+  (only when `CLERK_ENABLED`) and watches `useAuth()` + `useAttempts()`. Whenever the attempt
+  log changes or sign-in state flips to true, it calls `lib/cloud-sync.ts`'s
+  `syncUnsyncedAttempts()`, which pushes any attempt ID not yet recorded in a local
+  `synced-attempt-ids` localStorage set. This single mechanism covers both ongoing sync of new
+  attempts and the one-time login migration: a freshly signed-in browser has an empty
+  synced-ids set, so every attempt accumulated while offline gets pushed on first login.
+- **Everything degrades independently**: no Clerk keys → guest mode, fully functional app, no
+  sync attempted. Clerk configured but no Supabase keys → sign-in works, sync silently no-ops
+  (`{ synced: false, reason: "supabase_not_configured" }`). This mirrors the offline-fallback
+  pattern used for the Claude API integration above.
 
 ## Coding rules
 

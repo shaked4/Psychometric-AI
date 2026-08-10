@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { CLERK_ENABLED } from "@/lib/config";
+import { ClerkAuthSection } from "@/components/auth/clerk-auth-section";
+import { GuestModeBadge } from "@/components/auth/guest-mode-badge";
 
 const NAV_ITEMS = [
   { href: "/", label: "בית", match: (p: string) => p === "/" },
@@ -22,12 +25,12 @@ export function NavBar() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-4">
         <Link href="/" className="text-lg font-bold tracking-tight">
           פסיכומטרי <span className="text-primary">AI</span>
         </Link>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex flex-wrap items-center gap-1">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
@@ -43,6 +46,10 @@ export function NavBar() {
             </Link>
           ))}
         </nav>
+
+        <div className="flex shrink-0 items-center gap-3">
+          {CLERK_ENABLED ? <ClerkAuthSection /> : <GuestModeBadge />}
+        </div>
       </div>
     </header>
   );
