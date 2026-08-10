@@ -14,6 +14,7 @@ const NAV_ITEMS = [
     match: (p: string) => p.startsWith("/practice") && !p.startsWith("/practice/custom"),
   },
   { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
+  { href: "/exam/quant", label: "סימולציית פרק", match: (p: string) => p.startsWith("/exam") },
 ];
 
 export function NavBar() {
