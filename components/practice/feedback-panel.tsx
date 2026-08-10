@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
+import { useTutorExplain } from "@/lib/use-tutor-explain";
 import type { Question, SelfReportedError } from "@/types";
 
 const ERROR_REASONS: { value: SelfReportedError; label: string }[] = [
@@ -30,40 +30,11 @@ export function FeedbackPanel({
   selfReportedError,
   onSelectErrorReason,
 }: FeedbackPanelProps) {
-  const [aiReply, setAiReply] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function handleExplainDifferently() {
-    setLoading(true);
-    setAiReply(null);
-    try {
-      const res = await fetch("/api/tutor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: {
-            section: question.section,
-            topic: question.topic,
-            subtopic: question.subtopic,
-            body: question.body,
-            passage: question.passage,
-            choices: question.choices,
-            correctAnswer: question.correctAnswer,
-            explanation: question.explanation,
-          },
-          studentAnswer: chosenAnswer,
-          selfReportedError,
-          messages: [{ role: "user", content: "תסביר לי את זה בדרך אחרת, בבקשה." }],
-        }),
-      });
-      const data = await res.json();
-      setAiReply(data.reply ?? "אירעה שגיאה בטעינת ההסבר. נסו שוב מאוחר יותר.");
-    } catch {
-      setAiReply("אירעה שגיאה בטעינת ההסבר. נסו שוב מאוחר יותר.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { reply: aiReply, loading, explainDifferently } = useTutorExplain(
+    question,
+    chosenAnswer,
+    selfReportedError
+  );
 
   return (
     <div
@@ -125,7 +96,7 @@ export function FeedbackPanel({
           variant="outline"
           size="sm"
           className="gap-1.5"
-          onClick={handleExplainDifferently}
+          onClick={explainDifferently}
           disabled={loading}
         >
           <Sparkles className="size-4" />

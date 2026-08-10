@@ -1,7 +1,11 @@
 import { MOCK_QUESTIONS } from "@/lib/mock-data";
-import type { Attempt, Section, SelfReportedError, TopicStats } from "@/types";
+import type { Attempt, Question, Section, SelfReportedError, TopicStats } from "@/types";
 
 const QUESTIONS_BY_ID = new Map(MOCK_QUESTIONS.map((q) => [q.id, q]));
+
+export function getQuestion(questionId: string): Question | undefined {
+  return QUESTIONS_BY_ID.get(questionId);
+}
 
 export const ERROR_REASON_LABELS: Record<SelfReportedError, string> = {
   careless: "שגיאות תשומת לב",

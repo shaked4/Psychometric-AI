@@ -35,6 +35,39 @@ export const MOCK_QUESTIONS: Question[] = [
     createdAt: "2026-08-01T00:00:00.000Z",
   },
 
+  {
+    id: "quant-3",
+    section: "quant",
+    topic: "בעיות תנועה ועבודה",
+    subtopic: "עבודה משותפת",
+    difficulty: 3,
+    type: "mcq",
+    body: "פועל א' יכול לסיים עבודה מסוימת ב-6 שעות, ופועל ב' יכול לסיים את אותה עבודה ב-3 שעות. כמה זמן ייקח לשניהם יחד לסיים את העבודה, אם יעבדו בקצב קבוע לאורך כל הזמן?",
+    passage: null,
+    choices: ["$2$ שעות", "$1.5$ שעות", "$3$ שעות", "$4.5$ שעות"],
+    correctAnswer: 0,
+    explanation:
+      "קצב העבודה של כל פועל הוא החלק מהעבודה שהוא מבצע בשעה אחת: פועל א' מבצע $\\dfrac{1}{6}$ מהעבודה בשעה, ופועל ב' מבצע $\\dfrac{1}{3}$ מהעבודה בשעה. הקצב המשותף הוא סכום הקצבים: $\\dfrac{1}{6} + \\dfrac{1}{3} = \\dfrac{1}{6} + \\dfrac{2}{6} = \\dfrac{3}{6} = \\dfrac{1}{2}$ מהעבודה בשעה. הזמן הנדרש הוא ההופכי של הקצב: $\\dfrac{1}{\\frac{1}{2}} = 2$ שעות. טעות נפוצה היא לחשב ממוצע פשוט של שני הזמנים ($4.5$ שעות) במקום לעבוד עם קצבים.",
+    media: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  },
+  {
+    id: "quant-4",
+    section: "quant",
+    topic: "הסתברות וקומבינטוריקה",
+    subtopic: "הסתברות בסיסית",
+    difficulty: 2,
+    type: "mcq",
+    body: "בכיס יש 3 כדורים אדומים ו-2 כדורים כחולים, הזהים זה לזה במגע. שולפים כדור אחד באקראי. מה ההסתברות שהכדור שנשלף יהיה כחול?",
+    passage: null,
+    choices: ["$40\\%$", "$60\\%$", "$25\\%$", "$50\\%$"],
+    correctAnswer: 0,
+    explanation:
+      "ההסתברות מחושבת כמספר התוצאות הרצויות חלקי מספר התוצאות האפשריות: יש 2 כדורים כחולים מתוך 5 כדורים בסך הכול, ולכן $P(\\text{כחול}) = \\dfrac{2}{5} = 0.4 = 40\\%$. טעות נפוצה היא לחשב את היחס ביחס למספר הכדורים האדומים ($\\dfrac{2}{3}$) במקום ביחס לסך כל הכדורים בכיס.",
+    media: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  },
+
   // --- Verbal (Hebrew) ---
   {
     id: "verbal-1",
@@ -74,6 +107,50 @@ export const MOCK_QUESTIONS: Question[] = [
     createdAt: "2026-08-01T00:00:00.000Z",
   },
 
+  {
+    id: "verbal-3",
+    section: "verbal",
+    topic: "הבנת הנקרא",
+    subtopic: "הסקת מסקנות",
+    difficulty: 3,
+    type: "mcq_with_passage",
+    passage:
+      "מחקרים עדכניים מראים כי שינה איכותית משפרת את היכולת הקוגניטיבית ואת הזיכרון לטווח ארוך. עם זאת, מחסור כרוני בשינה עלול לגרום לירידה משמעותית ביכולת הריכוז ואף להשפיע לרעה על מצב הרוח. חוקרים ממליצים על 7-9 שעות שינה בלילה עבור מבוגרים, אך מציינים כי הצורך המדויק משתנה מאדם לאדם.",
+    body: "מה ניתן להסיק מהקטע?",
+    choices: [
+      "כל אדם זקוק בדיוק ל-8 שעות שינה בלילה.",
+      "מחסור בשינה עלול לפגוע הן ביכולת הריכוז והן במצב הרוח.",
+      "שינה איכותית אינה קשורה לזיכרון לטווח ארוך.",
+      "חוקרים ממליצים על פחות מ-7 שעות שינה למבוגרים.",
+    ],
+    correctAnswer: 1,
+    explanation:
+      "הקטע מציין במפורש שמחסור כרוני בשינה 'עלול לגרום לירידה משמעותית ביכולת הריכוז ואף להשפיע לרעה על מצב הרוח' — כלומר פוגע בשני התחומים גם יחד, ולכן תשובה ב' נכונה. תשובה א' שגויה כי הקטע מציין טווח (7-9 שעות) ולא מספר קבוע. תשובה ג' סותרת את הקטע, שקושר במפורש בין שינה איכותית לזיכרון. תשובה ד' הפוכה מהאמור בקטע.",
+    media: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  },
+  {
+    id: "verbal-4",
+    section: "verbal",
+    topic: "חשיבה לוגית",
+    subtopic: "קבוצות והיסק",
+    difficulty: 3,
+    type: "mcq",
+    body: "כל הספרים בספרייה מסווגים לפי נושא. הספר 'קיץ' מסווג בקטגוריית 'ספרות יפה'. ידוע שאין אף ספר בקטגוריית 'ספרות יפה' שמסווג גם כ'ספר עיון'. מה ניתן להסיק בוודאות?",
+    passage: null,
+    choices: [
+      "הספר 'קיץ' הוא ספר עיון.",
+      "הספר 'קיץ' אינו ספר עיון.",
+      "כל ספרי העיון הם ספרות יפה.",
+      "לא ניתן להסיק דבר.",
+    ],
+    correctAnswer: 1,
+    explanation:
+      "הקטגוריות 'ספרות יפה' ו'ספר עיון' זרות זו לזו — אין ספר ששייך לשתיהן. מכיוון שהספר 'קיץ' מסווג כ'ספרות יפה', הוא אינו יכול להיות גם 'ספר עיון'. זהו היסק ישיר משתי הנחות על קבוצות זרות, ולכן תשובה ב' נובעת בוודאות.",
+    media: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  },
+
   // --- English ---
   {
     id: "english-1",
@@ -109,6 +186,44 @@ export const MOCK_QUESTIONS: Question[] = [
     correctAnswer: 0,
     explanation:
       "The original sentence states that despite disappointing results, the team stayed optimistic. Option A preserves this exact relationship. Option B reverses the meaning (pessimistic instead of optimistic). Options C and D scramble the logical relationship between the results and the team's outlook.",
+    media: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  },
+  {
+    id: "english-3",
+    section: "english",
+    topic: "Reading Comprehension",
+    subtopic: "Main Idea",
+    difficulty: 3,
+    type: "mcq_with_passage",
+    passage:
+      "Renewable energy sources, such as solar and wind power, have become increasingly cost-effective over the past decade. While initial installation costs remain a barrier for some communities, the long-term savings and environmental benefits continue to drive adoption worldwide. Experts predict that renewables could account for the majority of global electricity generation within the next twenty years.",
+    body: "According to the passage, what is true about renewable energy adoption?",
+    choices: [
+      "Installation costs have made renewable energy economically unfeasible.",
+      "Long-term savings and environmental benefits are encouraging wider adoption despite upfront costs.",
+      "Renewables already account for the majority of global electricity generation.",
+      "Experts believe renewable energy will never become dominant.",
+    ],
+    correctAnswer: 1,
+    explanation:
+      "The passage states that despite installation costs being a barrier, \"long-term savings and environmental benefits continue to drive adoption,\" matching option B exactly. Option A overstates the cost barrier as making adoption unfeasible. Option C confuses a future prediction (\"within the next twenty years\") with the present. Option D directly contradicts the experts' prediction described in the passage.",
+    media: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  },
+  {
+    id: "english-4",
+    section: "english",
+    topic: "Sentence Completion",
+    subtopic: "Cause and Effect",
+    difficulty: 2,
+    type: "mcq",
+    body: "The evidence presented was so ______ that even the most skeptical jurors were persuaded of the defendant's innocence.",
+    passage: null,
+    choices: ["ambiguous", "compelling", "trivial", "circumstantial"],
+    correctAnswer: 1,
+    explanation:
+      "The structure \"so ______ that even the most skeptical jurors were persuaded\" requires a word describing evidence strong enough to overcome skepticism. Only 'compelling' fits this cause-and-effect relationship. 'Ambiguous', 'trivial', and 'circumstantial' all describe weak or unclear evidence, which would not persuade skeptical jurors.",
     media: null,
     createdAt: "2026-08-01T00:00:00.000Z",
   },
