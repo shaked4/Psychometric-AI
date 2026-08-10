@@ -55,6 +55,7 @@ export interface RecordAttemptInput {
   isCorrect: boolean;
   timeTakenSeconds: number;
   selfReportedError: SelfReportedError | null;
+  flagged?: boolean;
 }
 
 /**

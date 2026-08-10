@@ -40,6 +40,12 @@ export interface Attempt {
   isCorrect: boolean;
   timeTakenSeconds: number;
   selfReportedError: SelfReportedError | null;
+  /** Set when the question was flagged for follow-up (currently only exam
+   * mode has a flagging UI). Feeds the spaced-repetition queue in
+   * lib/spaced-repetition.ts alongside wrong answers. Absent on attempts
+   * recorded before Phase 9, which is why every read treats it as `!== true`
+   * rather than assuming the field exists. */
+  flagged?: boolean;
   createdAt: string;
 }
 

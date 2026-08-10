@@ -59,6 +59,38 @@ and converses; the stats layer decides.
 
 Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
 
+## Spaced repetition & analytics (Phase 9)
+
+- **Question cache (`lib/question-cache.ts`)**: AI-generated questions (exam mode,
+  `/practice/custom`) only ever existed in the fetching component's memory — nothing else
+  could resolve their id back to a `Question` afterward, so their attempts silently dropped
+  out of topic stats. Every generated batch is now cached in localStorage keyed by id, and
+  `getQuestion()` in `lib/stats.ts` falls back to it after the static mock bank. Simulates
+  what a real backend's `questions` table would do (persist generated content permanently);
+  this is the local-only stand-in for that.
+- **Spaced repetition (`lib/spaced-repetition.ts`)**: like the stats layer, the review
+  schedule is *derived*, not stored — `computeReviewQueue(attempts)` replays each question's
+  attempts chronologically. A wrong answer or a flagged attempt (`Attempt.flagged`, currently
+  only set by exam mode) resets it to the first interval; a correct, unflagged answer while
+  already in the queue advances it (1 day → 3 days → 7 days), and clearing the last interval
+  graduates the question out entirely. No second mutable store to drift from what actually
+  happened — recording a normal attempt via the shared `PracticeSession` engine during a
+  review session is enough to reschedule it, with zero review-specific write path.
+- **`/practice/review`** ("חזרה מרווחת") surfaces `computeReviewQueue(attempts).dueToday`,
+  resolved back to full `Question` objects via `getQuestion()`, and reuses `PracticeSession`
+  unchanged — mixed-section review works because `QuestionCard` already picks RTL/LTR
+  per-question rather than per-session.
+- **Exam history (`lib/exam-history.ts`)**: a small permanent localStorage log (score,
+  accuracy, section, timestamp) separate from the ephemeral, single-exam `ExamResultPayload`
+  in `lib/exam-result.ts` (sessionStorage, full per-question detail, overwritten every exam) —
+  needed because the dashboard's score-progression chart needs every past exam, not just the
+  last one.
+- **Readiness Index (`lib/readiness.ts`)**: a single deterministic 0-100 number — accuracy
+  (40%), pace vs. the exam's own 60s/question target (20%), practice-day streak capped at 7
+  days (15%), and spaced-repetition "review mastery" — the fraction of ever-wrong/flagged
+  questions since graduated out of the queue (25%). Never an LLM guess, same stats-layer
+  principle as everything else here.
+
 ## AI tutor integration
 
 `app/api/tutor/route.ts` is the single grounding point for all Claude calls (used by both

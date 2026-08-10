@@ -1,10 +1,14 @@
 import { MOCK_QUESTIONS } from "@/lib/mock-data";
+import { getCachedQuestion } from "@/lib/question-cache";
 import type { Attempt, Question, Section, SelfReportedError, TopicStats } from "@/types";
 
 const QUESTIONS_BY_ID = new Map(MOCK_QUESTIONS.map((q) => [q.id, q]));
 
+/** Falls back to the AI-generated question cache (lib/question-cache.ts) for
+ * ids that aren't in the static mock bank — exam and custom-practice
+ * questions are generated on the fly and only resolvable that way. */
 export function getQuestion(questionId: string): Question | undefined {
-  return QUESTIONS_BY_ID.get(questionId);
+  return QUESTIONS_BY_ID.get(questionId) ?? getCachedQuestion(questionId);
 }
 
 export const ERROR_REASON_LABELS: Record<SelfReportedError, string> = {
@@ -54,7 +58,7 @@ export function computeTopicStats(attempts: Attempt[]): TopicStatsWithSection[] 
   const groups = new Map<string, Attempt[]>();
 
   for (const attempt of attempts) {
-    const question = QUESTIONS_BY_ID.get(attempt.questionId);
+    const question = getQuestion(attempt.questionId);
     if (!question) continue;
     const key = `${question.section}::${question.topic}::${question.subtopic}`;
     const list = groups.get(key) ?? [];
@@ -159,7 +163,7 @@ export function computeErrorInsights(attempts: Attempt[]): ErrorInsight[] {
 
   for (const attempt of attempts) {
     if (attempt.isCorrect || !attempt.selfReportedError) continue;
-    const question = QUESTIONS_BY_ID.get(attempt.questionId);
+    const question = getQuestion(attempt.questionId);
     if (!question) continue;
     const key = `${question.section}::${question.topic}`;
     const list = incorrectByTopic.get(key) ?? [];

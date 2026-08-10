@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { CLERK_ENABLED } from "@/lib/config";
 import { ClerkAuthSection } from "@/components/auth/clerk-auth-section";
 import { GuestModeBadge } from "@/components/auth/guest-mode-badge";
+import { useAttempts } from "@/lib/use-attempts";
+import { computeReviewQueue } from "@/lib/spaced-repetition";
 
 const NAV_ITEMS = [
   { href: "/", label: "בית", match: (p: string) => p === "/" },
@@ -14,14 +16,18 @@ const NAV_ITEMS = [
   {
     href: "/practice/quant",
     label: "תרגול",
-    match: (p: string) => p.startsWith("/practice") && !p.startsWith("/practice/custom"),
+    match: (p: string) =>
+      p.startsWith("/practice") && !p.startsWith("/practice/custom") && !p.startsWith("/practice/review"),
   },
+  { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
   { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
   { href: "/exam/quant", label: "סימולציית פרק", match: (p: string) => p.startsWith("/exam") },
 ];
 
 export function NavBar() {
   const pathname = usePathname();
+  const attempts = useAttempts();
+  const dueCount = computeReviewQueue(attempts).dueToday.length;
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
@@ -43,6 +49,11 @@ export function NavBar() {
               )}
             >
               {item.label}
+              {item.href === "/practice/review" && dueCount > 0 && (
+                <span className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+                  {dueCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

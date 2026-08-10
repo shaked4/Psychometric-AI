@@ -1,16 +1,23 @@
 "use client";
 
 import { useAttempts } from "@/lib/use-attempts";
+import { useExamHistory } from "@/lib/use-exam-history";
 import {
   computeErrorInsights,
   computeOverallStats,
   computeTopicStatsWithGaps,
   getRecommendedTopic,
 } from "@/lib/stats";
+import { computeReviewQueue } from "@/lib/spaced-repetition";
+import { computeReadinessIndex } from "@/lib/readiness";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
 import { TopicMasteryCard } from "@/components/dashboard/topic-mastery-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { RecommendedPracticeCard } from "@/components/dashboard/recommended-practice-card";
+import { ReadinessIndexCard } from "@/components/dashboard/readiness-index-card";
+import { ReviewQueueCard } from "@/components/dashboard/review-queue-card";
+import { ScoreProgressionChart } from "@/components/dashboard/score-progression-chart";
+import { TopicBreakdownTable } from "@/components/dashboard/topic-breakdown-table";
 import type { Section } from "@/types";
 
 const SECTIONS: Section[] = ["quant", "verbal", "english"];
@@ -19,11 +26,14 @@ export default function DashboardPage() {
   // useSyncExternalStore matches server-rendered output (empty) on the
   // first client render, then reacts whenever recordAttempt() writes.
   const attempts = useAttempts();
+  const examHistory = useExamHistory();
 
   const overall = computeOverallStats(attempts);
   const topicStats = computeTopicStatsWithGaps(attempts);
   const insights = computeErrorInsights(attempts);
   const recommended = getRecommendedTopic(topicStats);
+  const readiness = computeReadinessIndex(attempts);
+  const reviewQueue = computeReviewQueue(attempts);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
@@ -40,11 +50,25 @@ export default function DashboardPage() {
         streakDays={overall.streakDays}
       />
 
+      <ReadinessIndexCard breakdown={readiness} />
+
       <RecommendedPracticeCard
         section={recommended?.section ?? null}
         topic={recommended?.topic ?? null}
         accuracy={recommended?.accuracy ?? null}
       />
+
+      <ReviewQueueCard dueCount={reviewQueue.dueToday.length} />
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">מגמת ציונים בסימולציות</h2>
+        <ScoreProgressionChart entries={examHistory} />
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">פירוט ביצועים לפי נושא</h2>
+        <TopicBreakdownTable topics={topicStats} />
+      </div>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">מיפוי שליטה בנושאים</h2>

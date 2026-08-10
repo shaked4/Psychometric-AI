@@ -7,6 +7,8 @@ import { Flag, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { recordAttempt } from "@/lib/storage";
 import { saveExamResult } from "@/lib/exam-result";
+import { cacheQuestions } from "@/lib/question-cache";
+import { recordExamHistory, scaleScore } from "@/lib/exam-history";
 import { ExamTimer } from "@/components/exam/exam-timer";
 import { QuestionNavigator } from "@/components/exam/question-navigator";
 import { ExamAnswerOptions } from "@/components/exam/exam-answer-options";
@@ -74,6 +76,7 @@ export default function ExamSectionPage() {
           return;
         }
 
+        cacheQuestions(loaded);
         setQuestions(loaded);
         setAnswers(new Array(loaded.length).fill(null));
         setFlagged(new Array(loaded.length).fill(false));
@@ -97,17 +100,33 @@ export default function ExamSectionPage() {
     const totalTimeSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     const perQuestionTime = Math.max(1, Math.round(totalTimeSeconds / questions.length));
 
+    let correctCount = 0;
     questions.forEach((q, i) => {
       const chosen = answers[i];
       if (chosen === null) return; // no attempt to record for a skipped question
+      const isCorrect = chosen === q.correctAnswer;
+      if (isCorrect) correctCount += 1;
       recordAttempt({
         sessionId,
         questionId: q.id,
         chosenAnswer: chosen,
-        isCorrect: chosen === q.correctAnswer,
+        isCorrect,
         timeTakenSeconds: perQuestionTime,
         selfReportedError: null,
+        flagged: flagged[i],
       });
+    });
+
+    const completedAt = new Date().toISOString();
+
+    recordExamHistory({
+      sessionId,
+      section: section as Section,
+      score: scaleScore(correctCount / questions.length),
+      accuracyPct: Math.round((correctCount / questions.length) * 100),
+      totalTimeSeconds,
+      questionCount: questions.length,
+      completedAt,
     });
 
     saveExamResult({
@@ -117,7 +136,7 @@ export default function ExamSectionPage() {
       questions,
       answers,
       flaggedIndices: flagged.flatMap((f, i) => (f ? [i] : [])),
-      completedAt: new Date().toISOString(),
+      completedAt,
     });
 
     router.push("/exam/results");

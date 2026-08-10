@@ -8,16 +8,7 @@ import { NavBar } from "@/components/nav-bar";
 import { MathText } from "@/components/practice/math-text";
 import { useExamResult } from "@/lib/use-exam-result";
 import { SECTION_LABELS } from "@/lib/stats";
-
-/** Simplified, transparently-labeled linear approximation onto the real
- * exam's published 50-150 per-section scale. This is NOT the real NITE
- * equating algorithm (item-difficulty calibration, norming against other
- * test-takers) — that data doesn't exist for a simulated bank, which is why
- * the results screen explicitly disclaims it as an estimate. */
-function scaleScore(accuracyFraction: number): number {
-  const raw = 50 + accuracyFraction * 100;
-  return Math.max(50, Math.min(150, Math.round(raw / 5) * 5));
-}
+import { scaleScore } from "@/lib/exam-history";
 
 function formatTime(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);

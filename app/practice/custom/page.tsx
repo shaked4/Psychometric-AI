@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { NavBar } from "@/components/nav-bar";
 import { PracticeSession } from "@/components/practice/practice-session";
 import { getAllTopics } from "@/lib/stats";
+import { cacheQuestions } from "@/lib/question-cache";
 import type { Question, Section } from "@/types";
 
 type Difficulty = "easy" | "medium" | "hard";
@@ -65,6 +66,7 @@ export default function CustomPracticePage() {
         setError("לא הצלחנו ליצור שאלות כרגע. נסו שוב.");
         return;
       }
+      cacheQuestions(data.questions);
       setQuestions(data.questions);
     } catch {
       setError("אירעה שגיאה. בדקו את החיבור ונסו שוב.");
