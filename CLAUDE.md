@@ -149,6 +149,31 @@ Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
   retroactive path `/post-mortem`'s `MistakeReviewList` uses — rather than being part of the
   original `recordAttempt()` call.
 
+## Early submission (Phase 15)
+
+- **Shared confirmation UI**: `components/practice/submit-confirm-modal.tsx`'s
+  `SubmitConfirmModal` is a real centered modal (not an inline banner) with fixed Hebrew wording
+  ("ישנן X שאלות שלא נענו..." / "המשך בתרגול" / "הגש מכל מקום"), used identically by
+  `app/exam/[section]/page.tsx` and `PracticeSession` — one place owns this UX so the two flows
+  can't drift apart.
+- **Submit is always clickable**: both the exam's "הגש בחינה" header button and
+  `PracticeHeader`'s "הגש תרגול" button (rendered whenever `onSubmit` is passed, i.e. only during
+  the question phase) are never `disabled`. Clicking either only opens the confirmation modal
+  when there's at least one unanswered question left; with everything answered it submits
+  immediately, no pointless prompt.
+- **Last question is a clear call to action, not a dead end**: the exam's per-question "הבאה"
+  button becomes "הגש וסיים" on the final question (submitting through the same
+  `handleSubmitClick()` path) instead of rendering permanently `disabled`. `PracticeSession`'s
+  equivalent button is labeled "הגש וסיים" on the last question for the same reason, both funnel
+  through `handleSubmitClick`/`submitExam` respectively.
+- **Practice's early-submit accounting**: `PracticeSession` never lets you skip a question via
+  "השאלה הבאה" (an answer is still required to advance normally), but "הגש תרגול" can be clicked
+  mid-question — `recordCurrentAnswer()` first captures whatever's currently selected (if
+  anything) so a just-answered question is never dropped, then `unansweredCount` counts every
+  question from there to the end of the batch. The exam's equivalent (`answers.filter((a) => a
+  !== null)`) already supported gaps anywhere in the set since exam mode allows free navigation
+  between questions via `QuestionNavigator`.
+
 ## AI tutor integration
 
 `app/api/tutor/route.ts` is the single grounding point for all Claude calls (used by both

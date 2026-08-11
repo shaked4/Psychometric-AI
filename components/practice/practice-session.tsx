@@ -10,6 +10,7 @@ import { AnswerOptions } from "@/components/practice/answer-options";
 import { TutorChatDrawer } from "@/components/practice/tutor-chat-drawer";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/practice/breadcrumbs";
 import { SessionResults, type SessionResultEntry } from "@/components/practice/session-results";
+import { SubmitConfirmModal } from "@/components/practice/submit-confirm-modal";
 import { Button } from "@/components/ui/button";
 import type { Question } from "@/types";
 
@@ -54,6 +55,7 @@ export function PracticeSession({
   const [selected, setSelected] = useState<number | null>(null);
   const [results, setResults] = useState<SessionResultEntry[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
 
   // Wall-clock based, independent of the display timer above, so it stays
   // accurate regardless of render timing. Starts at 0 (not Date.now(), which
@@ -87,9 +89,12 @@ export function PracticeSession({
     setSelected(index);
   }
 
-  function handleNext() {
-    if (selected === null) return;
-
+  /** Records whatever is currently selected (if anything) as an attempt.
+   * Shared by the normal "next question" advance and by early submission,
+   * so a question the student already answered right before hitting
+   * "הגש תרגול" is never silently dropped. */
+  function recordCurrentAnswer(): SessionResultEntry | null {
+    if (selected === null) return null;
     const attempt = recordAttempt({
       sessionId,
       questionId: currentQuestion.id,
@@ -100,7 +105,12 @@ export function PracticeSession({
       // screen, where the student can actually see what went wrong.
       selfReportedError: null,
     });
-    const entry: SessionResultEntry = { question: currentQuestion, attempt };
+    return { question: currentQuestion, attempt };
+  }
+
+  function handleNext() {
+    const entry = recordCurrentAnswer();
+    if (!entry) return;
     setResults((prev) => [...prev, entry]);
 
     if (isLastQuestion) {
@@ -109,6 +119,26 @@ export function PracticeSession({
     }
     setCurrentIndex((i) => i + 1);
     setSelected(null);
+  }
+
+  // Any question at or after the current one that hasn't been answered yet
+  // — the current question only counts as "answered" once selected, even
+  // though its attempt isn't recorded until advancing/submitting.
+  const unansweredCount = questions.length - results.length - (selected !== null ? 1 : 0);
+
+  function submitNow() {
+    const entry = recordCurrentAnswer();
+    setResults((prev) => (entry ? [...prev, entry] : prev));
+    setConfirmingSubmit(false);
+    setPhase("summary");
+  }
+
+  function handleSubmitClick() {
+    if (unansweredCount > 0) {
+      setConfirmingSubmit(true);
+    } else {
+      submitNow();
+    }
   }
 
   function handleFinish() {
@@ -130,6 +160,14 @@ export function PracticeSession({
         }
         progressPct={phase === "summary" ? 100 : (currentIndex / questions.length) * 100}
         elapsedSeconds={elapsedSeconds}
+        onSubmit={phase === "question" ? handleSubmitClick : undefined}
+      />
+
+      <SubmitConfirmModal
+        open={confirmingSubmit}
+        unansweredCount={unansweredCount}
+        onCancel={() => setConfirmingSubmit(false)}
+        onConfirm={submitNow}
       />
 
       <div
@@ -163,7 +201,7 @@ export function PracticeSession({
                   onClick={handleNext}
                   className="self-end"
                 >
-                  {isLastQuestion ? "סיום ותצוגת תוצאות" : "השאלה הבאה"}
+                  {isLastQuestion ? "הגש וסיים" : "השאלה הבאה"}
                 </Button>
               )}
             </>

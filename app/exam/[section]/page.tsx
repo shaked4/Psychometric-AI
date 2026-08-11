@@ -13,6 +13,7 @@ import { ExamTimer } from "@/components/exam/exam-timer";
 import { QuestionNavigator } from "@/components/exam/question-navigator";
 import { ExamAnswerOptions } from "@/components/exam/exam-answer-options";
 import { QuestionCard } from "@/components/practice/question-card";
+import { SubmitConfirmModal } from "@/components/practice/submit-confirm-modal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Question, Section } from "@/types";
 
@@ -142,6 +143,15 @@ export default function ExamSectionPage() {
     router.push("/exam/results");
   }, [startedAt, questions, answers, sessionId, section, flagged, router]);
 
+  function handleSubmitClick() {
+    const unanswered = questions.length - answers.filter((a) => a !== null).length;
+    if (unanswered > 0) {
+      setConfirmingSubmit(true);
+    } else {
+      submitExam();
+    }
+  }
+
   function handleSelect(index: number) {
     setAnswers((prev) => {
       const next = [...prev];
@@ -207,32 +217,21 @@ export default function ExamSectionPage() {
           <div className="text-sm font-medium">סימולציית פרק {SECTION_LABELS[section]}</div>
           <div className="flex items-center gap-2">
             <ExamTimer totalSeconds={EXAM_DURATION_SECONDS} onExpire={submitExam} />
-            <Button size="sm" variant="outline" onClick={() => setConfirmingSubmit(true)}>
+            <Button size="sm" onClick={handleSubmitClick}>
               הגש בחינה
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
-        {confirmingSubmit && (
-          <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-            <p className="text-sm">
-              {answeredCount < questions.length &&
-                `שימו לב: ${questions.length - answeredCount} שאלות עדיין ללא תשובה. `}
-              להגיש את הבחינה?
-            </p>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={submitExam}>
-                כן, הגישו
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setConfirmingSubmit(false)}>
-                ביטול
-              </Button>
-            </div>
-          </div>
-        )}
+      <SubmitConfirmModal
+        open={confirmingSubmit}
+        unansweredCount={questions.length - answeredCount}
+        onCancel={() => setConfirmingSubmit(false)}
+        onConfirm={submitExam}
+      />
 
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
         <QuestionNavigator
           total={questions.length}
           currentIndex={currentIndex}
@@ -273,12 +272,13 @@ export default function ExamSectionPage() {
             >
               הקודמת
             </Button>
-            <Button
-              disabled={isLastQuestion}
-              onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
-            >
-              הבאה
-            </Button>
+            {isLastQuestion ? (
+              <Button onClick={handleSubmitClick}>הגש וסיים</Button>
+            ) : (
+              <Button onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}>
+                הבאה
+              </Button>
+            )}
           </div>
         </div>
       </main>

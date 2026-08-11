@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -17,6 +18,10 @@ interface PracticeHeaderProps {
   progressLabel: string;
   progressPct: number;
   elapsedSeconds: number;
+  /** Lets the student jump straight to the results screen before answering
+   * every question — omitted once the results screen is already showing,
+   * since there's nothing left to submit at that point. */
+  onSubmit?: () => void;
 }
 
 export function PracticeHeader({
@@ -24,6 +29,7 @@ export function PracticeHeader({
   progressLabel,
   progressPct,
   elapsedSeconds,
+  onSubmit,
 }: PracticeHeaderProps) {
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
@@ -55,6 +61,12 @@ export function PracticeHeader({
         >
           {formatElapsed(elapsedSeconds)}
         </div>
+
+        {onSubmit && (
+          <Button size="sm" onClick={onSubmit} className="shrink-0">
+            הגש תרגול
+          </Button>
+        )}
       </div>
     </header>
   );
