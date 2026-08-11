@@ -308,10 +308,61 @@ answers from a bare question with no context.
   practice). The AI stream (`/practice/custom`) and spaced-repetition review
   (`/practice/review`) don't get a sidebar — neither is browsing a fixed topic tree, so a
   static tree wouldn't mean anything there.
-- **NavBar grouping**: `NAV_GROUPS` in `components/nav-bar.tsx` clusters the now-8 top-level
+- **NavBar grouping**: `NAV_GROUPS` in `components/nav-bar.tsx` clusters the now-9 top-level
   destinations into core / practice / review, separated by thin dividers, rather than one flat
   row — a lower-effort, lower-risk way to cut visual clutter than restructuring the routes
   into dropdown menus.
+
+## Essay evaluation module (`/essay`, Phase 16)
+
+- **Standalone route, not under `(main)`**: like `/practice/[section]` and `/exam/[section]`,
+  `app/essay/page.tsx` renders its own `<NavBar />` only while browsing the prompt bank/history
+  — the writing phase swaps in a focused sticky header (exit, prompt title, timer, submit) with
+  no NavBar, same reasoning as the exam/practice headers (a timed writing task shouldn't compete
+  with top-nav chrome). One `phase` state (`"browse" | "writing" | "evaluating" | "results"`)
+  drives all four views from a single page component, mirroring `/practice/custom`'s
+  config-form-vs-session pattern.
+- **Prompt bank (`lib/essay-prompts.ts`)**: static, deliberately two-sided argumentative
+  prompts (never "explain why X is good") across social/ethical/philosophical/technological
+  categories — a genuine dilemma is what makes the content-axis rubric's "handling of
+  counterarguments" criterion gradable at all.
+- **`EssayTimer` vs `ExamTimer`**: `components/essay/essay-timer.tsx` starts paused with
+  explicit Start/Pause/Reset controls, unlike `ExamTimer` which auto-starts on mount — a
+  writing task benefits from letting the student read the prompt and plan before the clock
+  is actually running. `timeTakenSeconds` recorded on the resulting `EssayAttempt` is tracked
+  independently by the page itself (wall-clock from entering the writing phase to submission),
+  not derived from the timer's internal remaining-time state, so pausing doesn't distort it.
+- **Draft autosave**: `lib/essay-storage.ts`'s `saveEssayDraft()`/`getEssayDraft()` key drafts
+  per `promptId` in localStorage, debounced 600ms from the page's `onChange` handler. Opening
+  the same prompt again resumes the draft; submitting clears it via `clearEssayDraft()`.
+- **Stats-layer split still applies, just for scores**: the model is only ever asked for
+  `contentScore`/`languageScore` (both a 1-6 literal union, same structured-output workaround
+  `generate-questions` uses for `correctAnswer` since numeric ranges aren't enforceable in the
+  schema) plus the qualitative feedback fields. `estimatedPsychometricScore` is *never* asked of
+  the model — `app/api/evaluate-essay/route.ts`'s `estimatePsychometricScore()` computes it
+  deterministically by normalizing both axes to a 0-1 fraction and feeding
+  `lib/exam-history.ts`'s existing `scaleScore()` (the same 50-150 linear approximation the MCQ
+  sections use), so an essay's estimate is directly comparable to a section score and isn't
+  trusted to model arithmetic.
+- **Offline fallback is heuristic, not fabricated**: `buildTemplateEvaluation()` in the same
+  route computes `contentScore`/`languageScore` from measurements actually taken on the text
+  (word count vs. the 300-500 target, paragraph count, Hebrew transition-word usage, average
+  sentence length) and generates `strengths`/`improvements` sentences that cite those exact
+  numbers — same grounded-template philosophy as `analyze-mistakes`'s `buildTemplateAnalysis`.
+  It cannot responsibly invent sentence-level rewordings without a model, so
+  `reminiscentExamples` only ever flags sentences it can point to directly (35+ words) and is
+  left empty — never fabricated — when nothing qualifies.
+- **Own sync pair, not folded into `/api/sync/*`**: `app/api/essays/route.ts` (POST to
+  upsert one essay, GET to list this user's essays) uses the same Clerk-session +
+  service-role-client pattern as `app/api/sync/{push,pull}/route.ts`, but essays don't need
+  that pair's dirty-id tracking — each one is written once, never retroactively edited, so a
+  plain per-essay upsert is enough. `lib/essay-cloud.ts`'s `pushEssayAttempt()` fires
+  best-effort right after a local save (the route already degrades to `{synced:false}` if
+  Clerk/Supabase aren't configured or the user isn't signed in, so the client never needs to
+  check `CLERK_ENABLED` itself); `pullEssayAttempts()` runs once when the essay hub mounts.
+  `essay_attempts` (`supabase/schema.sql`) stores the full essay text and full evaluation
+  in the row itself — unlike MCQ attempts there's no compact question bank to resolve a
+  question_id against on another device, so the row is the only record of what was written.
 
 ## Coding rules
 

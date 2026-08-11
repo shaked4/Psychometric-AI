@@ -27,6 +27,7 @@ const NAV_GROUPS = [
     { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
     { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
     { href: "/exam/quant", label: "סימולציית פרק", match: (p: string) => p.startsWith("/exam") },
+    { href: "/essay", label: "מטלת כתיבה", match: (p: string) => p.startsWith("/essay") },
   ],
   [
     { href: "/history", label: "תחקור שאלות", match: (p: string) => p.startsWith("/history") },

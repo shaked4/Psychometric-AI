@@ -79,6 +79,34 @@ create table if not exists public.question_cache (
 create index if not exists question_cache_clerk_user_id_idx on public.question_cache (clerk_user_id);
 
 alter table public.question_cache enable row level security;
+
+-- One row per completed and evaluated essay (מטלת כתיבה, Phase 16). Stores
+-- the full essay text and the full evaluation (scores, feedback, sentence
+-- suggestions) rather than just a score, since — unlike MCQ attempts —
+-- there is no compact question bank to re-resolve this content against on
+-- another device; the row itself is the only record of what was written.
+create table if not exists public.essay_attempts (
+  id uuid primary key,
+  clerk_user_id text not null,
+  prompt_id text not null,
+  prompt_title text not null,
+  essay_text text not null,
+  word_count integer not null,
+  time_taken_seconds integer not null,
+  content_score integer not null,
+  language_score integer not null,
+  estimated_psychometric_score integer not null,
+  strengths jsonb not null,
+  improvements jsonb not null,
+  reminiscent_examples jsonb not null,
+  offline boolean not null default false,
+  created_at timestamptz not null,
+  synced_at timestamptz not null default now()
+);
+
+create index if not exists essay_attempts_clerk_user_id_idx on public.essay_attempts (clerk_user_id);
+
+alter table public.essay_attempts enable row level security;
 -- No policies defined on any table above: every request is denied by
 -- default, including ones authenticated with the anon key. Only the
 -- service-role key (server-only, see lib/supabase-server.ts) can read or
