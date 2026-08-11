@@ -12,19 +12,22 @@ import { computeReviewQueue } from "@/lib/spaced-repetition";
 /** Grouped into visually-separated clusters (core / practice / review)
  * rather than one flat row — a calmer scan pattern for a study portal with
  * this many top-level destinations. */
+const PRACTICE_SUB_ROUTES = ["/practice/custom", "/practice/review", "/practice/adaptive"];
+
 const NAV_GROUPS = [
   [
     { href: "/", label: "בית", match: (p: string) => p === "/" },
     { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
+    { href: "/profile", label: "פרופיל", match: (p: string) => p.startsWith("/profile") },
   ],
   [
     {
       href: "/practice/quant",
       label: "תרגול",
-      match: (p: string) =>
-        p.startsWith("/practice") && !p.startsWith("/practice/custom") && !p.startsWith("/practice/review"),
+      match: (p: string) => p.startsWith("/practice") && !PRACTICE_SUB_ROUTES.some((r) => p.startsWith(r)),
     },
     { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
+    { href: "/practice/adaptive", label: "תרגול אדפטיבי", match: (p: string) => p.startsWith("/practice/adaptive") },
     { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
     { href: "/exam/quant", label: "סימולציית פרק", match: (p: string) => p.startsWith("/exam") },
     { href: "/essay", label: "מטלת כתיבה", match: (p: string) => p.startsWith("/essay") },
@@ -63,7 +66,7 @@ export function NavBar() {
                   )}
                 >
                   {item.label}
-                  {item.href === "/practice/review" && dueCount > 0 && (
+                  {(item.href === "/practice/review" || item.href === "/practice/adaptive") && dueCount > 0 && (
                     <span className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
                       {dueCount}
                     </span>

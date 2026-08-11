@@ -364,6 +364,67 @@ answers from a bare question with no context.
   in the row itself — unlike MCQ attempts there's no compact question bank to resolve a
   question_id against on another device, so the row is the only record of what was written.
 
+## Cloud sync polish, dynamic question engine & adaptive practice (Phase 17)
+
+Phases 8/9/11 already built bidirectional Supabase sync, the Leitner-style spaced-repetition
+queue, and the full analytics dashboard (readiness index, topic breakdown, mastery cards). This
+phase is additive on top of that, not a rewrite — see below for what's genuinely new vs. what
+already existed.
+
+- **Deliberately did *not* add a server-stored "topic mastery" table.** The request asked for
+  topic-level mastery to be stored "directly in Supabase," but mastery is a derived number
+  (accuracy per subtopic), and this codebase's core rule (see "Architecture principle" above) is
+  that derived stats are computed fresh from `attempts`, never separately persisted — a stored
+  mastery table would immediately drift the moment an attempt was re-tagged or synced late.
+  Instead, `attempts` (the raw data) already fully syncs to Supabase, and `lib/mastery.ts`'s
+  `computeTopicMasteryMatrix()` derives mastery identically from that log wherever it's needed —
+  cross-device consistency comes from the raw data syncing, not from a second copy of the
+  conclusion.
+- **`lib/mastery.ts`** is the one place that joins per-subtopic accuracy
+  (`computeTopicStatsWithGaps`) with per-subtopic due-review counts
+  (`computeReviewQueue`'s `active` list, resolved back to questions via `getQuestion()`) into a
+  single `TopicMasteryEntry[]`. `needsReinforcement` is `accuracy < 60` with at least
+  `MIN_ATTEMPTS_FOR_WEAK_FLAG` (3) attempts — same "don't judge a topic on 1-2 unlucky answers"
+  rule `getRecommendedTopic()` already used. Both the dashboard's `TopicMasteryCard` (now shows a
+  "X לחזרה" badge per subtopic) and `/practice/adaptive` read this one function, so they can
+  never disagree about what's due or weak.
+- **`/api/generate-question`** (singular) is a new, session-aware sibling of the existing
+  `/api/generate-questions` (plural, stateless batch generator behind `/practice/custom` — left
+  unchanged). The singular route exists specifically for what a stateless endpoint can't do:
+  - **Adaptive difficulty**: resolved from a client-supplied `recentAccuracyPct` (computed from
+    the caller's already-merged, cross-device attempt log via `lib/mastery.ts`) rather than
+    reconstructed server-side from a Supabase snapshot alone, which could lag behind attempts
+    still mid-sync.
+  - **Cross-device dedup**: `buildExcludeTexts()` merges the caller's known-recent question
+    bodies with a live Supabase `question_cache` lookup (same Clerk-session + service-role
+    pattern as `/api/sync/*`) scoped to this user's own `section`/`topic` — the part a client
+    genuinely cannot do alone, since it can't see AI questions this user was served on a
+    *different* device. The exclude list is passed into the system prompt ("don't repeat these")
+    and checked once post-generation as a cheap exact-match safety net.
+  - Same offline/no-key fallback philosophy as every other AI route: cycles the mock bank,
+    filtered against the exclude list where possible, flagged `offline: true`.
+- **`/practice/adaptive`**: not a third spaced-repetition implementation — it reuses
+  `computeReviewQueue().dueToday` verbatim (identical to `/practice/review`) and adds up to
+  `MAX_REINFORCEMENT_TOPICS` (3) freshly-generated questions, one per weak subtopic, fetched from
+  `/api/generate-question` with `difficulty: "adaptive"` (which resolves to `"easy"` by
+  construction, since `needsReinforcement` only fires below 60% accuracy) and that subtopic's own
+  recent question bodies as the exclude list. The merged list feeds straight into the existing
+  `PracticeSession` component — no new practice UI, same blind-answer-then-review flow, same
+  early-submission modal, same results screen.
+- **`/profile`**: does not introduce a second sync mechanism. `CloudSyncBridge` (root-mounted)
+  already pulls-then-pushes on every sign-in across the whole app; this phase only added essay
+  history to that same pull (`pullEssayAttempts()` alongside `pullRemoteData()`, since essays
+  previously only pulled when `/essay` itself mounted). `/profile` reads from the same local
+  stores every other page reads from (`useAttempts`/`useExamHistory`/`useEssayAttempts`) and adds
+  a manual "סנכרון עכשיו" button that re-runs the same pull/push functions on demand, purely for
+  visibility into sync state — "cross-device continuity" was already real; this page makes it
+  observable.
+- **Dashboard**: `OverviewHeader` gained a fourth stat, average time per question
+  (`OverallStats.avgTimeSeconds`, `lib/stats.ts`) — the one piece of Pillar 4's "speed" ask that
+  wasn't already surfaced (streak and accuracy trends already existed via `streakDays` and
+  `ScoreProgressionChart`). A new `AdaptivePracticeCard` links to `/practice/adaptive`, next to
+  the existing `ReviewQueueCard`.
+
 ## Coding rules
 
 - **RTL-first**: the app defaults to `dir="rtl"` and `lang="he"`. Build and test layouts in

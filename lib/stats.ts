@@ -112,6 +112,7 @@ export interface OverallStats {
   totalAnswered: number;
   accuracyPct: number;
   streakDays: number;
+  avgTimeSeconds: number;
 }
 
 function toDateKey(iso: string) {
@@ -138,10 +139,15 @@ export function computeStreak(attempts: Attempt[]): number {
 export function computeOverallStats(attempts: Attempt[]): OverallStats {
   const totalAnswered = attempts.length;
   const correct = attempts.filter((a) => a.isCorrect).length;
+  const avgTimeSeconds =
+    totalAnswered === 0
+      ? 0
+      : Math.round(attempts.reduce((sum, a) => sum + a.timeTakenSeconds, 0) / totalAnswered);
   return {
     totalAnswered,
     accuracyPct: totalAnswered === 0 ? 0 : Math.round((correct / totalAnswered) * 100),
     streakDays: computeStreak(attempts),
+    avgTimeSeconds,
   };
 }
 

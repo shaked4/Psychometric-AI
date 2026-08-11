@@ -2,13 +2,9 @@
 
 import { useAttempts } from "@/lib/use-attempts";
 import { useExamHistory } from "@/lib/use-exam-history";
-import {
-  computeErrorInsights,
-  computeOverallStats,
-  computeTopicStatsWithGaps,
-  getRecommendedTopic,
-} from "@/lib/stats";
+import { computeErrorInsights, computeOverallStats, getRecommendedTopic } from "@/lib/stats";
 import { computeReviewQueue } from "@/lib/spaced-repetition";
+import { computeTopicMasteryMatrix } from "@/lib/mastery";
 import { computeReadinessIndex } from "@/lib/readiness";
 import { computePostMortemStats } from "@/lib/post-mortem";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
@@ -17,6 +13,7 @@ import { InsightsCard } from "@/components/dashboard/insights-card";
 import { RecommendedPracticeCard } from "@/components/dashboard/recommended-practice-card";
 import { ReadinessIndexCard } from "@/components/dashboard/readiness-index-card";
 import { ReviewQueueCard } from "@/components/dashboard/review-queue-card";
+import { AdaptivePracticeCard } from "@/components/dashboard/adaptive-practice-card";
 import { PostMortemCard } from "@/components/dashboard/post-mortem-card";
 import { ScoreProgressionChart } from "@/components/dashboard/score-progression-chart";
 import { TopicBreakdownTable } from "@/components/dashboard/topic-breakdown-table";
@@ -31,12 +28,13 @@ export default function DashboardPage() {
   const examHistory = useExamHistory();
 
   const overall = computeOverallStats(attempts);
-  const topicStats = computeTopicStatsWithGaps(attempts);
+  const masteryMatrix = computeTopicMasteryMatrix(attempts);
   const insights = computeErrorInsights(attempts);
-  const recommended = getRecommendedTopic(topicStats);
+  const recommended = getRecommendedTopic(masteryMatrix);
   const readiness = computeReadinessIndex(attempts);
   const reviewQueue = computeReviewQueue(attempts);
   const postMortem = computePostMortemStats(attempts);
+  const weakTopicCount = masteryMatrix.filter((t) => t.needsReinforcement).length;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
@@ -51,6 +49,7 @@ export default function DashboardPage() {
         totalAnswered={overall.totalAnswered}
         accuracyPct={overall.accuracyPct}
         streakDays={overall.streakDays}
+        avgTimeSeconds={overall.avgTimeSeconds}
       />
 
       <ReadinessIndexCard breakdown={readiness} />
@@ -63,6 +62,8 @@ export default function DashboardPage() {
 
       <ReviewQueueCard dueCount={reviewQueue.dueToday.length} />
 
+      <AdaptivePracticeCard weakTopicCount={weakTopicCount} dueReviewCount={reviewQueue.dueToday.length} />
+
       <PostMortemCard totalIncorrect={postMortem.totalIncorrect} totalTagged={postMortem.totalTagged} />
 
       <div>
@@ -72,7 +73,7 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">פירוט ביצועים לפי נושא</h2>
-        <TopicBreakdownTable topics={topicStats} />
+        <TopicBreakdownTable topics={masteryMatrix} />
       </div>
 
       <div>
@@ -82,7 +83,7 @@ export default function DashboardPage() {
             <TopicMasteryCard
               key={section}
               section={section}
-              topics={topicStats.filter((t) => t.section === section)}
+              topics={masteryMatrix.filter((t) => t.section === section)}
             />
           ))}
         </div>

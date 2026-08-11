@@ -1,5 +1,7 @@
+import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SECTION_LABELS, getStrengthLevel, type StrengthLevel, type TopicStatsWithSection } from "@/lib/stats";
+import { SECTION_LABELS, getStrengthLevel, type StrengthLevel } from "@/lib/stats";
+import type { TopicMasteryEntry } from "@/lib/mastery";
 import type { Section } from "@/types";
 
 const STRENGTH_EMOJI: Record<StrengthLevel, string> = {
@@ -18,7 +20,7 @@ const BAR_COLOR: Record<StrengthLevel, string> = {
 
 interface TopicMasteryCardProps {
   section: Section;
-  topics: TopicStatsWithSection[];
+  topics: TopicMasteryEntry[];
 }
 
 export function TopicMasteryCard({ section, topics }: TopicMasteryCardProps) {
@@ -36,7 +38,13 @@ export function TopicMasteryCard({ section, topics }: TopicMasteryCardProps) {
                   <span>{STRENGTH_EMOJI[level]}</span>
                   {topic.subtopic}
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {topic.dueReviewCount > 0 && (
+                    <span className="flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-primary">
+                      <Clock className="size-3" />
+                      {topic.dueReviewCount} לחזרה
+                    </span>
+                  )}
                   {topic.attemptCount === 0 ? "טרם תורגל" : `${topic.accuracy}%`}
                 </span>
               </div>
