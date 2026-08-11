@@ -65,3 +65,18 @@ export function recordExamHistory(entry: ExamHistoryEntry): void {
   localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify(history));
   for (const listener of listeners) listener();
 }
+
+/** Merges exam history pulled from Supabase (see lib/cloud-sync.ts) into
+ * the local log, skipping any sessionId already present — restores the
+ * score-progression chart on a new device after signing in. */
+export function mergeRemoteExamHistory(remote: ExamHistoryEntry[]): void {
+  if (!isBrowser() || remote.length === 0) return;
+
+  const local = getExamHistory();
+  const existingIds = new Set(local.map((e) => e.sessionId));
+  const toAdd = remote.filter((e) => !existingIds.has(e.sessionId));
+  if (toAdd.length === 0) return;
+
+  localStorage.setItem(EXAM_HISTORY_KEY, JSON.stringify([...local, ...toAdd]));
+  for (const listener of listeners) listener();
+}

@@ -141,25 +141,63 @@ answers from a bare question with no context.
   `UserButton` menu) to Hebrew, plus a light `appearance.variables` nudge toward this app's
   near-black primary and Rubik font — deliberately just the documented `variables` API, not
   hand-overridden `elements` selectors, which drift more across Clerk versions.
-- **Cloud persistence**: Supabase (`@supabase/supabase-js`), but **never written to directly
-  from the browser**. The `attempts` table (`supabase/schema.sql`) has Row Level Security
-  enabled with zero policies, making it unreachable via the public anon key under any
-  circumstance. All writes go through `app/api/sync/push/route.ts`, which verifies the
-  caller's Clerk session server-side via `auth()` and then writes using the service-role key
+- **Cloud persistence**: Supabase (`@supabase/supabase-js`), but **never written to (or read
+  from) directly from the browser**. All three tables (`attempts`, `exam_history`,
+  `question_cache` — `supabase/schema.sql`) have Row Level Security enabled with zero
+  policies, making them unreachable via the public anon key under any circumstance. All reads
+  and writes go through `app/api/sync/push/route.ts` and `app/api/sync/pull/route.ts`, which
+  verify the caller's Clerk session server-side via `auth()` and then use the service-role key
   (`lib/supabase-server.ts`, `SUPABASE_SERVICE_ROLE_KEY`, server-only), which bypasses RLS by
-  design. This avoids needing to design and audit RLS policies for the MVP while keeping the
+  design. This avoids needing to design and audit RLS policies for the MVP while keeping every
   table fully closed to clients.
-- **Sync mechanism**: `components/auth/cloud-sync-bridge.tsx` is mounted once at the root
-  (only when `CLERK_ENABLED`) and watches `useAuth()` + `useAttempts()`. Whenever the attempt
-  log changes or sign-in state flips to true, it calls `lib/cloud-sync.ts`'s
-  `syncUnsyncedAttempts()`, which pushes any attempt ID not yet recorded in a local
-  `synced-attempt-ids` localStorage set. This single mechanism covers both ongoing sync of new
-  attempts and the one-time login migration: a freshly signed-in browser has an empty
-  synced-ids set, so every attempt accumulated while offline gets pushed on first login.
+- **`question_cache` table**: attempts only store a `question_id`; for AI-generated questions
+  (exam mode, custom AI practice) nothing else can resolve that id back to content on a
+  *different* device — unlike the static mock bank, which is baked into every build. This
+  table is the cloud counterpart of the local `lib/question-cache.ts` cache, storing full
+  question content so a synced attempt is actually resolvable (topic stats, spaced-repetition
+  queue) wherever it's pulled. Mock-bank questions are never pushed here — every device
+  already has them built in.
+- **Bidirectional sync (`lib/cloud-sync.ts`, `components/auth/cloud-sync-bridge.tsx`)**:
+  mounted once at the root, only when `CLERK_ENABLED`.
+  - **Pull** (`pullRemoteData()`): fires once per sign-in. Fetches this user's `attempts`,
+    `exam_history`, and `question_cache` rows and merges them into the matching local
+    localStorage stores (`mergeRemoteAttempts()`, `mergeRemoteExamHistory()`,
+    `cacheQuestions()`) — each merge only adds ids/sessionIds not already present locally.
+    This is what restores the dashboard and review queue on a new device, since the
+    spaced-repetition queue (`lib/spaced-repetition.ts`) is *derived* from the attempt log
+    with no separate store of its own — once attempts are back, the queue is automatically
+    correct with no dedicated sync path for it.
+  - **Push** (`pushUnsyncedData()`): fires after every pull, and again on every subsequent
+    local attempt/exam-history change. Tracks synced ids in three localStorage sets
+    (`synced-attempt-ids`, `synced-exam-session-ids`, `synced-question-ids`) and only ever
+    sends what's new, including the AI-generated question content those new attempts
+    reference. Pulled items are marked synced immediately so they're never pushed straight
+    back.
+  - The pull-then-push chain in `CloudSyncBridge` is written as an explicit promise chain
+    (`pullRemoteData().then(() => pushUnsyncedData(...))`) rather than relying on a second
+    effect re-firing off the re-render the merge functions trigger — the latter raced React's
+    batching timing in practice.
 - **Everything degrades independently**: no Clerk keys → guest mode, fully functional app, no
-  sync attempted. Clerk configured but no Supabase keys → sign-in works, sync silently no-ops
-  (`{ synced: false, reason: "supabase_not_configured" }`). This mirrors the offline-fallback
+  sync attempted. Clerk configured but no Supabase keys → sign-in works, pull/push both
+  silently no-op (`{ synced: false, reason: "supabase_not_configured" }` /
+  `{ pulled: false, reason: "supabase_not_configured" }`). This mirrors the offline-fallback
   pattern used for the Claude API integration above.
+
+## Continuous AI question stream (`/practice/custom`)
+
+- **Retry before mock fallback**: `app/api/generate-questions/route.ts` only falls back to
+  the mock bank after `MAX_GENERATION_ATTEMPTS` (2) full attempts at real generation fail — a
+  single refusal, parse failure, or transient API error no longer immediately dumps a
+  key-holding user into mock content. The response always flags `offline: true` when it *did*
+  fall back, which is what the client below reacts to.
+- **Streaming UX**: `/practice/custom` no longer serves one fixed batch and returns to the
+  config form. `PracticeSession`'s `onFinish` is wired to `handleBatchFinish()`, which
+  requests a fresh batch with the same config and feeds it straight back into
+  `PracticeSession` (remounted via a batch-numbered `key`) — an unbroken chain of real-time
+  Claude API calls for as long as the user keeps going. The moment a batch comes back with
+  `offline: true` (mock fallback), the stream deliberately stops auto-continuing after that
+  batch — otherwise it would loop the same 4 mock questions indefinitely, which is exactly
+  what this feature exists to avoid — and shows a Hebrew notice explaining why.
 
 ## Coding rules
 

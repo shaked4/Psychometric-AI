@@ -80,3 +80,18 @@ export function recordAttempt(input: RecordAttemptInput): Attempt {
 
   return attempt;
 }
+
+/** Merges attempts pulled from Supabase (see lib/cloud-sync.ts) into the
+ * local log, skipping any id already present — this is what restores a
+ * user's history on a new device after signing in. */
+export function mergeRemoteAttempts(remote: Attempt[]): void {
+  if (!isBrowser() || remote.length === 0) return;
+
+  const local = getAttempts();
+  const existingIds = new Set(local.map((a) => a.id));
+  const toAdd = remote.filter((a) => !existingIds.has(a.id));
+  if (toAdd.length === 0) return;
+
+  localStorage.setItem(ATTEMPTS_KEY, JSON.stringify([...local, ...toAdd]));
+  for (const listener of listeners) listener();
+}

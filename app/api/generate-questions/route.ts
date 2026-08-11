@@ -125,6 +125,37 @@ function toQuestion(
   };
 }
 
+/** One attempt at real generation. Returns null (not an error) for a
+ * refusal, an empty parse, or zero questions surviving validation — the
+ * caller decides whether to retry or fall back from there. */
+async function generateOnce(
+  client: Anthropic,
+  section: Section,
+  topic: string | undefined,
+  subtopic: string | undefined,
+  difficulty: Difficulty,
+  safeCount: number
+): Promise<Question[] | null> {
+  const response = await client.messages.parse({
+    model: MODEL,
+    max_tokens: 6144,
+    system: buildSystemPrompt(),
+    messages: [{ role: "user", content: buildUserPrompt(section, topic, subtopic, difficulty, safeCount) }],
+    output_config: { format: zodOutputFormat(GeneratedBatchSchema) },
+  });
+
+  if (response.stop_reason === "refusal" || !response.parsed_output) return null;
+
+  const questions = response.parsed_output.questions
+    .filter((q) => q.choices.length === 4)
+    .slice(0, safeCount)
+    .map((q) => toQuestion(q, section, difficulty, topic, subtopic));
+
+  return questions.length > 0 ? questions : null;
+}
+
+const MAX_GENERATION_ATTEMPTS = 2;
+
 export async function POST(req: NextRequest) {
   let body: GenerateRequestBody;
   try {
@@ -152,33 +183,22 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey });
 
-  try {
-    const response = await client.messages.parse({
-      model: MODEL,
-      max_tokens: 6144,
-      system: buildSystemPrompt(),
-      messages: [
-        { role: "user", content: buildUserPrompt(section, topic, subtopic, difficulty, safeCount) },
-      ],
-      output_config: { format: zodOutputFormat(GeneratedBatchSchema) },
-    });
-
-    if (response.stop_reason === "refusal" || !response.parsed_output) {
-      return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
+  // A key is configured, so make a genuine effort to return real content:
+  // a refusal, a parse failure, or a transient API error on the first try
+  // shouldn't immediately dump the user into the 4-question mock bank when
+  // a retry stands a good chance of succeeding. Only after both attempts
+  // fail to produce valid questions do we fall back, and that fallback is
+  // always flagged via `offline: true` so callers (e.g. the continuous
+  // stream in /practice/custom) can react instead of looping mock content
+  // forever.
+  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+    try {
+      const questions = await generateOnce(client, section, topic, subtopic, difficulty, safeCount);
+      if (questions) return NextResponse.json({ questions });
+    } catch (error) {
+      console.error(`Generate questions error (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}):`, error);
     }
-
-    const questions = response.parsed_output.questions
-      .filter((q) => q.choices.length === 4)
-      .slice(0, safeCount)
-      .map((q) => toQuestion(q, section, difficulty, topic, subtopic));
-
-    if (questions.length === 0) {
-      return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
-    }
-
-    return NextResponse.json({ questions });
-  } catch (error) {
-    console.error("Generate questions error:", error);
-    return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
   }
+
+  return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
 }

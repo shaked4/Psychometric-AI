@@ -30,6 +30,28 @@ const SECTION_LABELS: Record<Section, string> = {
   english: "אנגלית",
 };
 
+interface GeneratedBatch {
+  questions: Question[];
+  offline: boolean;
+}
+
+async function fetchBatch(
+  section: Section,
+  topic: string | undefined,
+  subtopic: string | undefined,
+  difficulty: Difficulty,
+  count: number
+): Promise<GeneratedBatch | null> {
+  const res = await fetch("/api/generate-questions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ section, topic, subtopic, difficulty, count }),
+  });
+  const data = await res.json();
+  if (!Array.isArray(data.questions) || data.questions.length === 0) return null;
+  return { questions: data.questions, offline: data.offline === true };
+}
+
 export default function CustomPracticePage() {
   const [section, setSection] = useState<Section>("quant");
   const [subtopic, setSubtopic] = useState("");
@@ -37,51 +59,99 @@ export default function CustomPracticePage() {
   const [count, setCount] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamNotice, setStreamNotice] = useState<string | null>(null);
+
   const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchNumber, setBatchNumber] = useState(0);
+  const [totalServed, setTotalServed] = useState(0);
+  // Once a batch comes back offline (mock fallback), the stream stops
+  // auto-continuing — otherwise it would loop the same 4 mock questions
+  // indefinitely, exactly what this feature is meant to avoid.
+  const [streamEnded, setStreamEnded] = useState(false);
 
   const subtopicOptions = useMemo(
     () => getAllTopics().filter((t) => t.section === section),
     [section]
   );
 
+  function currentTopicMatch() {
+    return subtopicOptions.find((t) => t.subtopic === subtopic);
+  }
+
   async function handleGenerate() {
     setLoading(true);
     setError(null);
-    const match = subtopicOptions.find((t) => t.subtopic === subtopic);
+    setStreamNotice(null);
+    const match = currentTopicMatch();
 
-    try {
-      const res = await fetch("/api/generate-questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section,
-          topic: match?.topic,
-          subtopic: match?.subtopic,
-          difficulty,
-          count,
-        }),
-      });
-      const data = await res.json();
-      if (!Array.isArray(data.questions) || data.questions.length === 0) {
-        setError("לא הצלחנו ליצור שאלות כרגע. נסו שוב.");
-        return;
-      }
-      cacheQuestions(data.questions);
-      setQuestions(data.questions);
-    } catch {
-      setError("אירעה שגיאה. בדקו את החיבור ונסו שוב.");
-    } finally {
-      setLoading(false);
+    const batch = await fetchBatch(section, match?.topic, match?.subtopic, difficulty, count);
+    setLoading(false);
+
+    if (!batch) {
+      setError("לא הצלחנו ליצור שאלות כרגע. נסו שוב.");
+      return;
     }
+
+    cacheQuestions(batch.questions);
+    setQuestions(batch.questions);
+    setBatchNumber(1);
+    setTotalServed(batch.questions.length);
+    setStreamEnded(batch.offline);
+    if (batch.offline) {
+      setStreamNotice(
+        "לא זיהינו מפתח Claude API פעיל, כך שהוצגו שאלות לדוגמה מתוך בנק השאלות הקבוע במקום זרם AI חי."
+      );
+    }
+  }
+
+  async function handleBatchFinish() {
+    if (streamEnded) {
+      // Last batch was the offline mock fallback — nothing fresh to stream,
+      // so end the session here instead of silently looping mock content.
+      setQuestions(null);
+      return;
+    }
+
+    setBatchLoading(true);
+    const match = currentTopicMatch();
+    const batch = await fetchBatch(section, match?.topic, match?.subtopic, difficulty, count);
+    setBatchLoading(false);
+
+    if (!batch) {
+      setQuestions(null);
+      setStreamNotice("החיבור לזרם השאלות נקטע. התחילו תרגול חדש כדי להמשיך.");
+      return;
+    }
+
+    cacheQuestions(batch.questions);
+    setQuestions(batch.questions);
+    setBatchNumber((n) => n + 1);
+    setTotalServed((t) => t + batch.questions.length);
+    setStreamEnded(batch.offline);
+    if (batch.offline) {
+      setStreamNotice(
+        "לא זיהינו מפתח Claude API פעיל, כך שהוצגו שאלות לדוגמה מתוך בנק השאלות הקבוע — זו תהיה המנה האחרונה בזרם הנוכחי."
+      );
+    }
+  }
+
+  if (questions && batchLoading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" />
+        <p>יוצרים עבורכם מנה נוספת של שאלות AI טריות...</p>
+      </div>
+    );
   }
 
   if (questions) {
     return (
       <PracticeSession
-        key={questions.map((q) => q.id).join(",")}
+        key={`${batchNumber}-${questions.map((q) => q.id).join(",")}`}
         questions={questions}
-        sectionLabel={`${SECTION_LABELS[section]} · מותאם אישית`}
-        onFinish={() => setQuestions(null)}
+        sectionLabel={`${SECTION_LABELS[section]} · תרגול רציף עם AI · מנה ${batchNumber}`}
+        onFinish={handleBatchFinish}
       />
     );
   }
@@ -91,11 +161,25 @@ export default function CustomPracticePage() {
       <NavBar />
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-10">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">תרגול מותאם אישית עם AI</h1>
+          <h1 className="text-2xl font-bold tracking-tight">תרגול רציף עם AI</h1>
           <p className="mt-1 text-muted-foreground">
-            בחרו קטע, נושא ורמת קושי — ונבנה עבורכם תרגול חדש ומקורי, במקום.
+            בחרו קטע, נושא ורמת קושי — ה-AI ימשיך לייצר עבורכם שאלות חדשות ומקוריות בזמן אמת,
+            מנה אחר מנה, כל עוד תרצו להמשיך.
           </p>
         </div>
+
+        {streamNotice && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+            {streamNotice}
+          </div>
+        )}
+
+        {totalServed > 0 && (
+          <p className="text-sm text-muted-foreground">
+            תרגלתם <span className="font-medium text-foreground">{totalServed}</span> שאלות ברצף
+            האחרון.
+          </p>
+        )}
 
         <div className="flex flex-col gap-6 rounded-xl border border-border bg-card p-6 shadow-sm">
           <div className="flex flex-col gap-2">
@@ -163,7 +247,7 @@ export default function CustomPracticePage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">מספר שאלות</span>
+            <span className="text-sm font-medium">שאלות במנה</span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -185,6 +269,9 @@ export default function CustomPracticePage() {
                 +
               </button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              גודל כל מנה בזרם — הזרם עצמו ממשיך לבקש מנות חדשות אוטומטית עד שתצאו.
+            </p>
           </div>
 
           <Button
@@ -194,7 +281,7 @@ export default function CustomPracticePage() {
             className="gap-2 self-start"
           >
             {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-            {loading ? "יוצר תרגול..." : "צור אימון מותאם אישית"}
+            {loading ? "יוצר תרגול..." : "התחילו זרם תרגול AI"}
           </Button>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
