@@ -98,18 +98,18 @@ Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
   replacing the earlier 3-value set from Phase 4. The field name and the Supabase column
   (`self_reported_error text`) didn't need to change, only the values, so this was a values-only
   migration with no schema/sync-layer impact. `components/post-mortem/error-tag-picker.tsx` is
-  the single shared picker for this taxonomy — used both for the inline quick-tag right after
-  answering (`FeedbackPanel`) and for retroactive tagging in the deep post-mortem review, so
-  the two never drift apart.
-- **Two tagging paths, one write surface**: the inline picker tags a mistake the moment it
-  happens (optional, `PracticeSession` never requires it — see Phase 3). Exam mode has no
-  inline tagging UI at all, so `/post-mortem`'s `MistakeReviewList` is the *only* way to tag
-  exam mistakes, and also serves as a catch-up path for anything skipped during practice.
-  Retroactive tagging goes through a second write path, `updateAttemptTag()` in
-  `lib/storage.ts`, alongside the original `recordAttempt()` — after calling it, callers also
-  call `markAttemptsDirty()` (`lib/cloud-sync.ts`) to un-mark that attempt as synced, since
-  Supabase's upsert-by-id means simply re-pushing it overwrites the stale tag with no separate
-  "update" endpoint needed.
+  the single shared picker for this taxonomy — used by `FeedbackPanel` (now only ever rendered
+  on the end-of-session results screen, see below), the deep post-mortem review's
+  `MistakeReviewList`, and the results screen's own `ResultRow`, so all three tagging surfaces
+  never drift apart.
+- **Tagging paths, one write surface**: every tagging surface writes through the same second
+  write path, `updateAttemptTag()` in `lib/storage.ts`, alongside the original `recordAttempt()`
+  — since Phase 14, `PracticeSession` records an attempt with `selfReportedError: null` the
+  moment the student answers (see below) and tagging always happens afterward, retroactively,
+  whether that's seconds later on the results screen or much later during a deep `/post-mortem`
+  review. After calling `updateAttemptTag()`, callers also call `markAttemptsDirty()`
+  (`lib/cloud-sync.ts`) to un-mark that attempt as synced, since Supabase's upsert-by-id means
+  simply re-pushing it overwrites the stale tag with no separate "update" endpoint needed.
 - **Stats engine (`lib/post-mortem.ts`)**: `getQualifyingAttempts()` — wrong, or slow even if
   correct (`SLOW_ANSWER_THRESHOLD_SECONDS`, 90s) — and `computePostMortemStats()` — per-topic
   error-tag breakdowns, time-loss warnings, overall tag distribution — are both pure functions
@@ -125,6 +125,29 @@ Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
   stats object — e.g. "60% of your mistakes in Geometry are calculation errors" — not a
   placeholder "AI unavailable" message, so the feature still delivers real value with no API
   key configured.
+
+## Blind answer-then-review flow (Phase 14)
+
+- **No live feedback**: `components/practice/practice-session.tsx` no longer reveals
+  correctness, the correct answer, or the explanation as each question is answered.
+  `AnswerOptions` only highlights the chosen option (never green/red) and `recordAttempt()` is
+  still called immediately per question — `selfReportedError: null`, since the student hasn't
+  seen the outcome yet to reason about it — but nothing about the outcome is rendered.
+- **Two-phase session**: `PracticeSession` tracks a `phase: "question" | "summary"` state.
+  Advancing past the last question switches to `"summary"` instead of immediately calling
+  `onFinish()`/navigating to `finishHref`; the elapsed-time interval also stops ticking at that
+  point. `onFinish`/`finishHref` now fire from the results screen's own "סיום" button
+  (`handleFinish()`), so this applies unchanged to all three consumers of `PracticeSession`
+  (`/practice/[section]`, the continuous AI stream in `/practice/custom`, and
+  `/practice/review`) with no per-consumer changes needed.
+- **Results screen (`components/practice/session-results.tsx`)**: `SessionResults` shows score,
+  accuracy, average time/question, and total time, then one collapsed `ResultRow` per question —
+  expanding one reveals the chosen vs. correct answer and reuses `FeedbackPanel` (explanation +
+  "הסבר בדרך אחרת" AI button + `ErrorTagPicker` for wrong answers) exactly as it rendered
+  inline before this phase. Since the attempt was already recorded during the question phase,
+  tagging here writes through `updateAttemptTag()` + `markAttemptsDirty()` — the same
+  retroactive path `/post-mortem`'s `MistakeReviewList` uses — rather than being part of the
+  original `recordAttempt()` call.
 
 ## AI tutor integration
 

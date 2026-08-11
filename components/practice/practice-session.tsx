@@ -7,16 +7,16 @@ import { recordAttempt } from "@/lib/storage";
 import { PracticeHeader } from "@/components/practice/practice-header";
 import { QuestionCard } from "@/components/practice/question-card";
 import { AnswerOptions } from "@/components/practice/answer-options";
-import { FeedbackPanel } from "@/components/practice/feedback-panel";
 import { TutorChatDrawer } from "@/components/practice/tutor-chat-drawer";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/practice/breadcrumbs";
+import { SessionResults, type SessionResultEntry } from "@/components/practice/session-results";
 import { Button } from "@/components/ui/button";
-import type { Question, SelfReportedError } from "@/types";
+import type { Question } from "@/types";
 
 interface PracticeSessionProps {
   questions: Question[];
   sectionLabel: string;
-  /** Where "סיום התרגול" navigates to. Ignored if onFinish is provided. */
+  /** Where finishing the results screen navigates to. Ignored if onFinish is provided. */
   finishHref?: string;
   /** Alternative to navigating away on finish — e.g. return to a config form. */
   onFinish?: () => void;
@@ -31,9 +31,14 @@ interface PracticeSessionProps {
 }
 
 /** The shared practice engine: progress header, one question at a time,
- * feedback + tutor chat, recording each attempt. Used by both the fixed
- * per-section practice route and the AI-generated custom practice route so
- * this session-cycling logic exists in exactly one place. */
+ * tutor chat, recording each attempt. Used by both the fixed per-section
+ * practice route and the AI-generated custom practice route so this
+ * session-cycling logic exists in exactly one place.
+ *
+ * Correctness and explanations are deliberately withheld while questions
+ * are in progress — answers are recorded silently as the student
+ * progresses, and only revealed together on a results screen once the
+ * whole batch is answered (see components/practice/session-results.tsx). */
 export function PracticeSession({
   questions,
   sectionLabel,
@@ -44,9 +49,10 @@ export function PracticeSession({
 }: PracticeSessionProps) {
   const router = useRouter();
   const [sessionId] = useState(() => crypto.randomUUID());
+  const [phase, setPhase] = useState<"question" | "summary">("question");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
-  const [errorReason, setErrorReason] = useState<SelfReportedError | null>(null);
+  const [results, setResults] = useState<SessionResultEntry[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Wall-clock based, independent of the display timer above, so it stays
@@ -57,9 +63,12 @@ export function PracticeSession({
   const answerTimeTakenRef = useRef(0);
 
   useEffect(() => {
+    // Stops ticking once the results screen is up — that time is no longer
+    // "answering time" and shouldn't keep inflating the session total.
+    if (phase !== "question") return;
     const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [phase]);
 
   useEffect(() => {
     questionStartTimeRef.current = Date.now();
@@ -68,9 +77,6 @@ export function PracticeSession({
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
   const answered = selected !== null;
-  const isCorrect = answered && selected === currentQuestion.correctAnswer;
-  // Selecting a self-reported error reason is encouraged (see FeedbackPanel)
-  // but never required to advance.
   const canProceed = answered;
 
   function handleSelect(index: number) {
@@ -84,34 +90,45 @@ export function PracticeSession({
   function handleNext() {
     if (selected === null) return;
 
-    recordAttempt({
+    const attempt = recordAttempt({
       sessionId,
       questionId: currentQuestion.id,
       chosenAnswer: selected,
-      isCorrect,
+      isCorrect: selected === currentQuestion.correctAnswer,
       timeTakenSeconds: answerTimeTakenRef.current,
-      selfReportedError: errorReason,
+      // Not asked live anymore — mistakes are tagged from the results
+      // screen, where the student can actually see what went wrong.
+      selfReportedError: null,
     });
+    const entry: SessionResultEntry = { question: currentQuestion, attempt };
+    setResults((prev) => [...prev, entry]);
 
     if (isLastQuestion) {
-      if (onFinish) {
-        onFinish();
-      } else {
-        router.push(finishHref);
-      }
+      setPhase("summary");
       return;
     }
     setCurrentIndex((i) => i + 1);
     setSelected(null);
-    setErrorReason(null);
+  }
+
+  function handleFinish() {
+    if (onFinish) {
+      onFinish();
+    } else {
+      router.push(finishHref);
+    }
   }
 
   return (
     <div className="flex min-h-screen flex-col">
       <PracticeHeader
         sectionLabel={sectionLabel}
-        currentIndex={currentIndex}
-        total={questions.length}
+        progressLabel={
+          phase === "summary"
+            ? "סיכום תרגול"
+            : `שאלה ${currentIndex + 1} מתוך ${questions.length}`
+        }
+        progressPct={phase === "summary" ? 100 : (currentIndex / questions.length) * 100}
         elapsedSeconds={elapsedSeconds}
       />
 
@@ -126,46 +143,42 @@ export function PracticeSession({
         <main className="flex w-full flex-1 flex-col gap-6">
           {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
 
-          <QuestionCard question={currentQuestion} />
+          {phase === "summary" ? (
+            <SessionResults results={results} totalElapsedSeconds={elapsedSeconds} onFinish={handleFinish} />
+          ) : (
+            <>
+              <QuestionCard question={currentQuestion} />
 
-          <AnswerOptions
-            choices={currentQuestion.choices}
-            correctAnswer={currentQuestion.correctAnswer}
-            selected={selected}
-            section={currentQuestion.section}
-            onSelect={handleSelect}
-          />
+              <AnswerOptions
+                choices={currentQuestion.choices}
+                selected={selected}
+                section={currentQuestion.section}
+                onSelect={handleSelect}
+              />
 
-          {selected !== null && (
-            <FeedbackPanel
-              question={currentQuestion}
-              chosenAnswer={selected}
-              isCorrect={isCorrect}
-              explanation={currentQuestion.explanation}
-              selfReportedError={errorReason}
-              onSelectErrorReason={setErrorReason}
-            />
-          )}
-
-          {answered && (
-            <Button
-              size="lg"
-              disabled={!canProceed}
-              onClick={handleNext}
-              className="self-end"
-            >
-              {isLastQuestion ? "סיום התרגול" : "השאלה הבאה"}
-            </Button>
+              {answered && (
+                <Button
+                  size="lg"
+                  disabled={!canProceed}
+                  onClick={handleNext}
+                  className="self-end"
+                >
+                  {isLastQuestion ? "סיום ותצוגת תוצאות" : "השאלה הבאה"}
+                </Button>
+              )}
+            </>
           )}
         </main>
       </div>
 
-      <TutorChatDrawer
-        key={currentQuestion.id}
-        question={currentQuestion}
-        chosenAnswer={selected}
-        selfReportedError={errorReason}
-      />
+      {phase === "question" && (
+        <TutorChatDrawer
+          key={currentQuestion.id}
+          question={currentQuestion}
+          chosenAnswer={selected}
+          selfReportedError={null}
+        />
+      )}
     </div>
   );
 }

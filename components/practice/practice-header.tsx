@@ -11,19 +11,20 @@ function formatElapsed(totalSeconds: number) {
 
 interface PracticeHeaderProps {
   sectionLabel: string;
-  currentIndex: number;
-  total: number;
+  /** e.g. "שאלה 2 מתוך 5" while answering, or "סיכום תרגול" once every
+   * question in the batch has been answered — the caller owns the wording
+   * since only it knows which phase the session is in. */
+  progressLabel: string;
+  progressPct: number;
   elapsedSeconds: number;
 }
 
 export function PracticeHeader({
   sectionLabel,
-  currentIndex,
-  total,
+  progressLabel,
+  progressPct,
   elapsedSeconds,
 }: PracticeHeaderProps) {
-  const progressPct = (currentIndex / total) * 100;
-
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-4">
@@ -38,9 +39,7 @@ export function PracticeHeader({
         <div className="flex flex-1 flex-col gap-1.5">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{sectionLabel}</span>
-            <span>
-              שאלה {currentIndex + 1} מתוך {total}
-            </span>
+            <span>{progressLabel}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
