@@ -36,6 +36,19 @@ const EvaluationSchema = z.object({
 
 const MIN_WORDS_FOR_EVALUATION = 50;
 
+// Below this fraction of unique words (after stripping punctuation), an
+// essay is treated as spam/repetitive regardless of what the model — or
+// the offline heuristic — would otherwise have scored it. Set fairly
+// forgiving (real argumentative essays naturally reuse connector words and
+// the essay's own key terms) so this only catches genuine "same phrase
+// dozens of times" spam, not normal repetition.
+const LEXICAL_RICHNESS_THRESHOLD = 0.3;
+// A wall of text with no sentence breaks at all isn't a structured essay,
+// independent of vocabulary — the other half of the "spam/gibberish"
+// detection the heuristic fallback is asked for.
+const MIN_SENTENCES_FOR_STRUCTURE = 3;
+const MIN_SCORE = 1;
+
 function countWords(text: string): number {
   const trimmed = text.trim();
   return trimmed.length === 0 ? 0 : trimmed.split(/\s+/).length;
@@ -48,17 +61,85 @@ function splitSentences(text: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+/** Unique words / total words, after stripping punctuation and casing —
+ * the standard cheap proxy for "is this the same phrase copy-pasted over
+ * and over" text. A normal essay of a few hundred words easily clears
+ * LEXICAL_RICHNESS_THRESHOLD; "אני אוהב לכתוב" repeated 40 times does not. */
+function computeLexicalRichness(text: string): number {
+  const words = text
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/[.,!?;:'"()[\]{}״׳*\-–—]/g, "").toLowerCase())
+    .filter((w) => w.length > 0);
+  if (words.length === 0) return 1;
+  return new Set(words).size / words.length;
+}
+
+interface EssayMetrics {
+  paragraphs: string[];
+  sentences: string[];
+  lexicalRichness: number;
+  /** Repetitive/gibberish text, or text missing basic sentence structure —
+   * both contentScore and languageScore are hard-forced to 1 whenever this
+   * is true, on every evaluation path (Claude or offline heuristic), so a
+   * spam submission can't slip through just because the model didn't fully
+   * follow the "flag it" instruction in the system prompt. */
+  isFlaggedInvalid: boolean;
+}
+
+function computeEssayMetrics(essayText: string): EssayMetrics {
+  const paragraphs = essayText
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const sentences = splitSentences(essayText);
+  const lexicalRichness = computeLexicalRichness(essayText);
+  const structureOk = paragraphs.length >= 1 && sentences.length >= MIN_SENTENCES_FOR_STRUCTURE;
+
+  return {
+    paragraphs,
+    sentences,
+    lexicalRichness,
+    isFlaggedInvalid: lexicalRichness < LEXICAL_RICHNESS_THRESHOLD || !structureOk,
+  };
+}
+
 /**
  * The model is asked for contentScore/languageScore, never for the final
  * estimate — same stats-layer-vs-narrative-layer split as everywhere else
  * in this codebase (CLAUDE.md). Reuses the exam sections' own scaleScore()
  * linear approximation: both 1-6 axes are normalized to a 0-1 fraction and
  * averaged before feeding the same 50-150 curve, so an essay's estimate is
- * directly comparable to a section score.
+ * directly comparable to a section score. A flagged-invalid essay always
+ * bottoms out at scaleScore's own floor (50), which this formula already
+ * produces when both axes are 1 — no separate constant needed.
  */
 function estimatePsychometricScore(contentScore: number, languageScore: number): number {
   const fraction = (contentScore - 1 + (languageScore - 1)) / 10;
   return scaleScore(fraction);
+}
+
+/** Deterministic result for text flagged by computeEssayMetrics() —
+ * used on every path (live Claude call or offline heuristic) so a spam
+ * submission is scored 1/1 and clearly labeled as such no matter which
+ * evaluator produced it. */
+function buildFlaggedInvalidEvaluation(metrics: EssayMetrics): EssayEvaluation {
+  const reason =
+    metrics.sentences.length < MIN_SENTENCES_FOR_STRUCTURE
+      ? "הטקסט אינו בנוי כחיבור טיעון תקין — אין בו חלוקה למשפטים וּפסקאות."
+      : `הטקסט מציג חזרתיות לשונית קיצונית (עושר לשוני של כ-${Math.round(metrics.lexicalRichness * 100)}% בלבד מהמילים ייחודיות).`;
+
+  return {
+    contentScore: MIN_SCORE,
+    languageScore: MIN_SCORE,
+    estimatedPsychometricScore: estimatePsychometricScore(MIN_SCORE, MIN_SCORE),
+    strengths: [`החיבור סומן כלא תקין/חזרתי ולכן לא ניתן לזהות בו נקודות חוזק מהותיות. ${reason}`],
+    improvements: [
+      "יש לכתוב חיבור טיעון מקורי ורלוונטי לנושא שהוצג, במקום טקסט חוזר או חסר מבנה.",
+      "החיבור צריך לכלול תזה ברורה, גוף טיעון עם נימוקים מגוונים, התייחסות לעמדה הנגדית וסיכום.",
+    ],
+    reminiscentExamples: [],
+  };
 }
 
 /** Plain heuristic fallback for when there's no API key or the model call
@@ -69,10 +150,17 @@ function estimatePsychometricScore(contentScore: number, languageScore: number):
  * responsibly rewrite the student's prose without a model, so
  * reminiscentExamples only ever flags genuinely long sentences it can point
  * to directly in the text, and is left empty rather than invented content
- * when there's nothing objectively worth flagging. */
-function buildTemplateEvaluation(essayText: string, wordCount: number): EssayEvaluation {
-  const paragraphs = essayText.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const sentences = splitSentences(essayText);
+ * when there's nothing objectively worth flagging.
+ *
+ * POST() already returns buildFlaggedInvalidEvaluation() before this is ever
+ * called when metrics.isFlaggedInvalid, but the guard is repeated here too
+ * so this function stays correct on its own — a 300-word essay that's the
+ * same sentence copy-pasted 40 times would otherwise still pass the plain
+ * length/paragraph-count checks below. */
+function buildTemplateEvaluation(essayText: string, wordCount: number, metrics: EssayMetrics): EssayEvaluation {
+  if (metrics.isFlaggedInvalid) return buildFlaggedInvalidEvaluation(metrics);
+
+  const { paragraphs, sentences } = metrics;
   const avgSentenceLen = sentences.length > 0 ? wordCount / sentences.length : 0;
 
   const TRANSITION_WORDS = [
@@ -191,7 +279,14 @@ function buildSystemPrompt(): string {
 - improvements: 2-4 הערות ביקורת בונה וממוקדת, גם על תוכן וגם על לשון.
 - reminiscentExamples: 2-4 פריטים של משוב ברמת המשפט — כל פריט מצטט משפט אמיתי מתוך הטקסט של הכותב/ת בשדה original (העתק מדויק, לא פרפרזה), מציע ניסוח חלופי או משופר בשדה suggestion, ומסביר בקצרה מדוע בשדה comment.
 - לעולם אל תמציא ציטוטים שאינם מופיעים בטקסט המקורי.
-- כתוב הכל בעברית, בטון מקצועי, ישיר אך מכבד ובונה.`;
+- כתוב הכל בעברית, בטון מקצועי, ישיר אך מכבד ובונה.
+
+כלל תיקוף מחייב (עדיפות עליונה על כל הכללים האחרים):
+אם הטקסט שנשלח הוא טקסט חזרתי באופן קיצוני (למשל אותו משפט או ביטוי החוזר על עצמו עשרות פעמים), טקסט חסר משמעות/ג'יבריש, או טקסט שאינו קשור כלל לנושא החיבור שהוצג — עליך:
+1. לתת לשני הצירים, contentScore ו-languageScore, ציון 1 (הציון המינימלי) ללא יוצא מן הכלל.
+2. לציין באופן מפורש וברור בשדות strengths ו-improvements שהחיבור סומן כלא תקין/חזרתי/לא רלוונטי, ומדוע (למשל חזרתיות, חוסר משמעות, או חוסר קשר לנושא).
+3. שדה reminiscentExamples יכול להישאר ריק אם אין מה לצטט באופן מועיל.
+אל תנסה "לרכך" את הציון או להעניק נקודות על מאמץ כאשר הטקסט אינו חיבור אמיתי — זהו הכלל החשוב ביותר בהערכה הזו.`;
 }
 
 function buildUserPrompt(promptTitle: string, promptText: string, essayText: string, wordCount: number): string {
@@ -227,10 +322,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ insufficientContent: true, wordCount });
   }
 
+  const metrics = computeEssayMetrics(essayText);
+
+  // Obviously repetitive/structureless text is rejected before ever calling
+  // Claude — metrics.isFlaggedInvalid is computed straight from the text, so
+  // there's no need to spend an API call just to have the model reach the
+  // same conclusion the system prompt already tells it to. The prompt's own
+  // validation rule (buildSystemPrompt()) still matters for cases this cheap
+  // heuristic can't catch, like well-formed but off-topic text.
+  if (metrics.isFlaggedInvalid) {
+    return NextResponse.json({ evaluation: buildFlaggedInvalidEvaluation(metrics), wordCount });
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({
-      evaluation: buildTemplateEvaluation(essayText, wordCount),
+      evaluation: buildTemplateEvaluation(essayText, wordCount, metrics),
       wordCount,
       offline: true,
     });
@@ -249,7 +356,7 @@ export async function POST(req: NextRequest) {
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       return NextResponse.json({
-        evaluation: buildTemplateEvaluation(essayText, wordCount),
+        evaluation: buildTemplateEvaluation(essayText, wordCount, metrics),
         wordCount,
         offline: true,
       });
@@ -271,7 +378,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Evaluate essay error:", error);
     return NextResponse.json({
-      evaluation: buildTemplateEvaluation(essayText, wordCount),
+      evaluation: buildTemplateEvaluation(essayText, wordCount, metrics),
       wordCount,
       offline: true,
     });
