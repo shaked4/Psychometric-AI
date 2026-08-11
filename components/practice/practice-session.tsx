@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { recordAttempt } from "@/lib/storage";
 import { PracticeHeader } from "@/components/practice/practice-header";
 import { QuestionCard } from "@/components/practice/question-card";
 import { AnswerOptions } from "@/components/practice/answer-options";
 import { FeedbackPanel } from "@/components/practice/feedback-panel";
 import { TutorChatDrawer } from "@/components/practice/tutor-chat-drawer";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/practice/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import type { Question, SelfReportedError } from "@/types";
 
@@ -18,6 +20,14 @@ interface PracticeSessionProps {
   finishHref?: string;
   /** Alternative to navigating away on finish — e.g. return to a config form. */
   onFinish?: () => void;
+  /** "בית / חשיבה כמותית / תרגול נושאי"-style trail shown above the
+   * question. Only /practice/[section] passes this today — the other
+   * consumers (AI stream, spaced-repetition review) aren't browsing a
+   * fixed topic tree, so a trail wouldn't mean anything for them. */
+  breadcrumbs?: BreadcrumbItem[];
+  /** Optional "תוכן הלימוד" topic-tree panel — widens the layout to make
+   * room for it when present. */
+  sidebar?: React.ReactNode;
 }
 
 /** The shared practice engine: progress header, one question at a time,
@@ -29,6 +39,8 @@ export function PracticeSession({
   sectionLabel,
   finishHref = "/dashboard",
   onFinish,
+  breadcrumbs,
+  sidebar,
 }: PracticeSessionProps) {
   const router = useRouter();
   const [sessionId] = useState(() => crypto.randomUUID());
@@ -103,39 +115,50 @@ export function PracticeSession({
         elapsedSeconds={elapsedSeconds}
       />
 
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-8">
-        <QuestionCard question={currentQuestion} />
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-1 gap-6 px-6 py-8",
+          sidebar ? "max-w-2xl lg:max-w-5xl" : "max-w-2xl"
+        )}
+      >
+        {sidebar}
 
-        <AnswerOptions
-          choices={currentQuestion.choices}
-          correctAnswer={currentQuestion.correctAnswer}
-          selected={selected}
-          section={currentQuestion.section}
-          onSelect={handleSelect}
-        />
+        <main className="flex w-full flex-1 flex-col gap-6">
+          {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
 
-        {selected !== null && (
-          <FeedbackPanel
-            question={currentQuestion}
-            chosenAnswer={selected}
-            isCorrect={isCorrect}
-            explanation={currentQuestion.explanation}
-            selfReportedError={errorReason}
-            onSelectErrorReason={setErrorReason}
+          <QuestionCard question={currentQuestion} />
+
+          <AnswerOptions
+            choices={currentQuestion.choices}
+            correctAnswer={currentQuestion.correctAnswer}
+            selected={selected}
+            section={currentQuestion.section}
+            onSelect={handleSelect}
           />
-        )}
 
-        {answered && (
-          <Button
-            size="lg"
-            disabled={!canProceed}
-            onClick={handleNext}
-            className="self-end"
-          >
-            {isLastQuestion ? "סיום התרגול" : "השאלה הבאה"}
-          </Button>
-        )}
-      </main>
+          {selected !== null && (
+            <FeedbackPanel
+              question={currentQuestion}
+              chosenAnswer={selected}
+              isCorrect={isCorrect}
+              explanation={currentQuestion.explanation}
+              selfReportedError={errorReason}
+              onSelectErrorReason={setErrorReason}
+            />
+          )}
+
+          {answered && (
+            <Button
+              size="lg"
+              disabled={!canProceed}
+              onClick={handleNext}
+              className="self-end"
+            >
+              {isLastQuestion ? "סיום התרגול" : "השאלה הבאה"}
+            </Button>
+          )}
+        </main>
+      </div>
 
       <TutorChatDrawer
         key={currentQuestion.id}

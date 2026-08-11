@@ -38,7 +38,7 @@ export function AnswerOptions({
             disabled={answered}
             onClick={() => onSelect(index)}
             className={cn(
-              "flex items-center justify-between gap-3 rounded-xl border px-4 py-3.5 text-start transition",
+              "flex items-center justify-between gap-3 rounded-xl border px-5 py-4 text-start transition",
               !answered &&
                 "cursor-pointer border-border hover:border-primary/50 hover:bg-muted/60",
               answered &&

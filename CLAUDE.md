@@ -234,6 +234,37 @@ answers from a bare question with no context.
   batch — otherwise it would loop the same 4 mock questions indefinitely, which is exactly
   what this feature exists to avoid — and shows a Hebrew notice explaining why.
 
+## Design system & study navigation (Phase 13)
+
+- **Palette**: all color is expressed as CSS custom properties in `app/globals.css`
+  (`--primary`, `--background`, `--border`, etc.), consumed everywhere through semantic
+  Tailwind utilities (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-card`) —
+  never a hardcoded hex in a component. That discipline is what let this redesign land by
+  editing one file: primary = deep navy `#0f4c81`, accent = teal `#165a72`, background = soft
+  off-white `#f9fafb`, cards = white with `#e5e7eb` borders. Correct/incorrect indicators
+  (`text-green-600`/`text-red-600` etc., scattered across `components/practice` and
+  `components/history`) were deliberately left alone — Tailwind's green-600/red-600 already
+  equal the requested `#16a34a`/`#dc2626` exactly.
+- **Dark mode exists but is currently unreachable**: `.dark` is only ever applied via
+  `@custom-variant dark (&:is(.dark *))` in `globals.css`, and no toggle component adds that
+  class anywhere in the app — so the `.dark` tokens (kept in the same navy family, just
+  inverted) are dead CSS today, updated for coherence rather than because they're visible.
+- **`--sidebar-*` tokens**: scaffolded by shadcn/ui in Phase 1 but unused until now —
+  `components/practice/study-sidebar.tsx` is the first consumer.
+- **Study sidebar & breadcrumbs**: `PracticeSession` (`components/practice/practice-session.tsx`)
+  takes optional `breadcrumbs` and `sidebar` props and only widens its layout
+  (`max-w-2xl` → `max-w-2xl lg:max-w-5xl`) when a sidebar is actually passed. Only
+  `/practice/[section]` passes them — `StudySidebar` renders the full topic tree across all
+  three sections with the current one expanded, and `?topic=` filters `MOCK_QUESTIONS` to a
+  single unit (falling back to the full section if the filter would otherwise leave nothing to
+  practice). The AI stream (`/practice/custom`) and spaced-repetition review
+  (`/practice/review`) don't get a sidebar — neither is browsing a fixed topic tree, so a
+  static tree wouldn't mean anything there.
+- **NavBar grouping**: `NAV_GROUPS` in `components/nav-bar.tsx` clusters the now-8 top-level
+  destinations into core / practice / review, separated by thin dividers, rather than one flat
+  row — a lower-effort, lower-risk way to cut visual clutter than restructuring the routes
+  into dropdown menus.
+
 ## Coding rules
 
 - **RTL-first**: the app defaults to `dir="rtl"` and `lang="he"`. Build and test layouts in

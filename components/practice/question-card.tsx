@@ -10,7 +10,7 @@ export function QuestionCard({ question }: QuestionCardProps) {
   const dir = question.section === "english" ? "ltr" : undefined;
 
   return (
-    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-7 shadow-sm">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <span className="rounded-full bg-muted px-2.5 py-1">{question.topic}</span>
         <span className="rounded-full bg-muted px-2.5 py-1">{question.subtopic}</span>
@@ -19,7 +19,7 @@ export function QuestionCard({ question }: QuestionCardProps) {
       {question.passage && (
         <div
           dir={dir}
-          className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground"
+          className="rounded-lg bg-muted/60 p-4 text-base leading-relaxed text-muted-foreground"
         >
           <MathText text={question.passage} />
         </div>
@@ -34,7 +34,7 @@ export function QuestionCard({ question }: QuestionCardProps) {
         </div>
       )}
 
-      <p dir={dir} className="text-lg leading-relaxed text-card-foreground">
+      <p dir={dir} className="text-lg leading-loose text-card-foreground">
         <MathText text={question.body} />
       </p>
     </div>

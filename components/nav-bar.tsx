@@ -9,20 +9,29 @@ import { GuestModeBadge } from "@/components/auth/guest-mode-badge";
 import { useAttempts } from "@/lib/use-attempts";
 import { computeReviewQueue } from "@/lib/spaced-repetition";
 
-const NAV_ITEMS = [
-  { href: "/", label: "בית", match: (p: string) => p === "/" },
-  { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
-  { href: "/history", label: "תחקור שאלות", match: (p: string) => p.startsWith("/history") },
-  { href: "/post-mortem", label: "תחקור מעמיק", match: (p: string) => p.startsWith("/post-mortem") },
-  {
-    href: "/practice/quant",
-    label: "תרגול",
-    match: (p: string) =>
-      p.startsWith("/practice") && !p.startsWith("/practice/custom") && !p.startsWith("/practice/review"),
-  },
-  { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
-  { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
-  { href: "/exam/quant", label: "סימולציית פרק", match: (p: string) => p.startsWith("/exam") },
+/** Grouped into visually-separated clusters (core / practice / review)
+ * rather than one flat row — a calmer scan pattern for a study portal with
+ * this many top-level destinations. */
+const NAV_GROUPS = [
+  [
+    { href: "/", label: "בית", match: (p: string) => p === "/" },
+    { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
+  ],
+  [
+    {
+      href: "/practice/quant",
+      label: "תרגול",
+      match: (p: string) =>
+        p.startsWith("/practice") && !p.startsWith("/practice/custom") && !p.startsWith("/practice/review"),
+    },
+    { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
+    { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
+    { href: "/exam/quant", label: "סימולציית פרק", match: (p: string) => p.startsWith("/exam") },
+  ],
+  [
+    { href: "/history", label: "תחקור שאלות", match: (p: string) => p.startsWith("/history") },
+    { href: "/post-mortem", label: "תחקור מעמיק", match: (p: string) => p.startsWith("/post-mortem") },
+  ],
 ];
 
 export function NavBar() {
@@ -38,24 +47,29 @@ export function NavBar() {
         </Link>
 
         <nav className="flex flex-wrap items-center gap-1">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "rounded-lg px-3.5 py-2 text-sm font-medium transition",
-                item.match(pathname)
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              )}
-            >
-              {item.label}
-              {item.href === "/practice/review" && dueCount > 0 && (
-                <span className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
-                  {dueCount}
-                </span>
-              )}
-            </Link>
+          {NAV_GROUPS.map((group, groupIndex) => (
+            <div key={groupIndex} className="flex flex-wrap items-center gap-1">
+              {groupIndex > 0 && <span className="mx-1.5 h-5 w-px shrink-0 bg-border" aria-hidden />}
+              {group.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "rounded-lg px-3.5 py-2 text-sm font-medium transition",
+                    item.match(pathname)
+                      ? "bg-primary/10 font-semibold text-primary"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  )}
+                >
+                  {item.label}
+                  {item.href === "/practice/review" && dueCount > 0 && (
+                    <span className="ms-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
+                      {dueCount}
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
 
