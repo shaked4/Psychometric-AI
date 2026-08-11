@@ -4,14 +4,9 @@ import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
+import { ErrorTagPicker } from "@/components/post-mortem/error-tag-picker";
 import { useTutorExplain } from "@/lib/use-tutor-explain";
 import type { Question, SelfReportedError } from "@/types";
-
-const ERROR_REASONS: { value: SelfReportedError; label: string }[] = [
-  { value: "careless", label: "שגיאת תשומת לב" },
-  { value: "didnt_know", label: "חוסר ידע בחומר" },
-  { value: "ran_out_of_time", label: "לחץ זמן" },
-];
 
 interface FeedbackPanelProps {
   question: Question;
@@ -71,23 +66,7 @@ export function FeedbackPanel({
           <p className="text-sm font-medium text-muted-foreground">
             מה גרם לטעות, לדעתך?
           </p>
-          <div className="flex flex-wrap gap-2">
-            {ERROR_REASONS.map((reason) => (
-              <button
-                key={reason.value}
-                type="button"
-                onClick={() => onSelectErrorReason(reason.value)}
-                className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-sm transition",
-                  selfReportedError === reason.value
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {reason.label}
-              </button>
-            ))}
-          </div>
+          <ErrorTagPicker value={selfReportedError} onSelect={onSelectErrorReason} />
         </div>
       )}
 

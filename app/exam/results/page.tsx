@@ -167,9 +167,12 @@ export default function ExamResultsPage() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href={`/exam/${result.section}`} className={buttonVariants({ size: "lg" })}>
             סימולציה נוספת
+          </Link>
+          <Link href="/post-mortem" className={buttonVariants({ variant: "outline", size: "lg" })}>
+            תחקרו את הטעויות שלכם
           </Link>
           <Link
             href="/dashboard"

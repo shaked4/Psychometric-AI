@@ -81,6 +81,20 @@ export function recordAttempt(input: RecordAttemptInput): Attempt {
   return attempt;
 }
 
+/** Updates the root-cause tag on an already-recorded attempt — used by the
+ * deep post-mortem review (app/(main)/post-mortem/page.tsx) to tag mistakes
+ * that weren't tagged inline during the session (the only tagging path
+ * exam mode has, and an optional catch-up path for practice mode). Callers
+ * should also call markAttemptsDirty() from lib/cloud-sync.ts afterward so
+ * the change reaches Supabase — this file stays cloud-agnostic on purpose. */
+export function updateAttemptTag(attemptId: string, tag: SelfReportedError): void {
+  if (!isBrowser()) return;
+
+  const attempts = getAttempts().map((a) => (a.id === attemptId ? { ...a, selfReportedError: tag } : a));
+  localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(attempts));
+  for (const listener of listeners) listener();
+}
+
 /** Merges attempts pulled from Supabase (see lib/cloud-sync.ts) into the
  * local log, skipping any id already present — this is what restores a
  * user's history on a new device after signing in. */

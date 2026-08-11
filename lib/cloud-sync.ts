@@ -32,6 +32,18 @@ function markIds(key: string, ids: string[]) {
   localStorage.setItem(key, JSON.stringify([...merged]));
 }
 
+/** Un-marks an attempt as synced so the next pushUnsyncedData() call sends
+ * it again — needed because attempts aren't fully immutable: post-mortem
+ * re-tagging (lib/storage.ts's updateAttemptTag()) can change one after it
+ * already synced. Supabase's upsert-by-id means re-sending it is enough to
+ * overwrite the stale row, no separate "update" endpoint required. */
+export function markAttemptsDirty(ids: string[]): void {
+  if (!isBrowser() || ids.length === 0) return;
+  const synced = getIdSet(SYNCED_ATTEMPT_IDS_KEY);
+  for (const id of ids) synced.delete(id);
+  localStorage.setItem(SYNCED_ATTEMPT_IDS_KEY, JSON.stringify([...synced]));
+}
+
 /**
  * Pushes every attempt, exam history entry, and AI-generated question not
  * yet marked as synced to Supabase via /api/sync/push, scoped server-side

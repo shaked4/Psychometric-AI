@@ -4,7 +4,16 @@ export type QuestionType = "mcq" | "mcq_with_passage";
 
 export type SessionMode = "timed" | "untimed";
 
-export type SelfReportedError = "careless" | "didnt_know" | "ran_out_of_time";
+/** Root-cause tag a student assigns to a mistake — either inline right
+ * after answering (components/practice/feedback-panel.tsx) or later during
+ * a deep post-mortem review (app/(main)/post-mortem/page.tsx). See
+ * lib/stats.ts's ERROR_REASON_LABELS for the Hebrew labels. */
+export type SelfReportedError =
+  | "misread_question"
+  | "calculation_error"
+  | "time_pressure"
+  | "knowledge_gap"
+  | "guessed";
 
 export interface Question {
   id: string;

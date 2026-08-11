@@ -10,12 +10,14 @@ import {
 } from "@/lib/stats";
 import { computeReviewQueue } from "@/lib/spaced-repetition";
 import { computeReadinessIndex } from "@/lib/readiness";
+import { computePostMortemStats } from "@/lib/post-mortem";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
 import { TopicMasteryCard } from "@/components/dashboard/topic-mastery-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { RecommendedPracticeCard } from "@/components/dashboard/recommended-practice-card";
 import { ReadinessIndexCard } from "@/components/dashboard/readiness-index-card";
 import { ReviewQueueCard } from "@/components/dashboard/review-queue-card";
+import { PostMortemCard } from "@/components/dashboard/post-mortem-card";
 import { ScoreProgressionChart } from "@/components/dashboard/score-progression-chart";
 import { TopicBreakdownTable } from "@/components/dashboard/topic-breakdown-table";
 import type { Section } from "@/types";
@@ -34,6 +36,7 @@ export default function DashboardPage() {
   const recommended = getRecommendedTopic(topicStats);
   const readiness = computeReadinessIndex(attempts);
   const reviewQueue = computeReviewQueue(attempts);
+  const postMortem = computePostMortemStats(attempts);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
@@ -59,6 +62,8 @@ export default function DashboardPage() {
       />
 
       <ReviewQueueCard dueCount={reviewQueue.dueToday.length} />
+
+      <PostMortemCard totalIncorrect={postMortem.totalIncorrect} totalTagged={postMortem.totalTagged} />
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">מגמת ציונים בסימולציות</h2>

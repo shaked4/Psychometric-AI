@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/", label: "בית", match: (p: string) => p === "/" },
   { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
   { href: "/history", label: "תחקור שאלות", match: (p: string) => p.startsWith("/history") },
+  { href: "/post-mortem", label: "תחקור מעמיק", match: (p: string) => p.startsWith("/post-mortem") },
   {
     href: "/practice/quant",
     label: "תרגול",

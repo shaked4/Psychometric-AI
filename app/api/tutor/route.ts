@@ -37,9 +37,11 @@ const SECTION_LABELS: Record<Section, string> = {
 };
 
 const ERROR_REASON_LABELS: Record<SelfReportedError, string> = {
-  careless: "שגיאת תשומת לב",
-  didnt_know: "חוסר ידע בחומר",
-  ran_out_of_time: "לחץ זמן",
+  misread_question: "טעות בהבנת השאלה",
+  calculation_error: "טעות חישוב / אלגברה",
+  time_pressure: "ניהול זמנים / לחץ",
+  knowledge_gap: "חוסר ידע בנושא",
+  guessed: "ניחוש מושכל / ניחוש פראי",
 };
 
 // Shown whenever the model can't be reached — missing key, network error, or

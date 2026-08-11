@@ -91,6 +91,41 @@ Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
   questions since graduated out of the queue (25%). Never an LLM guess, same stats-layer
   principle as everything else here.
 
+## Deep post-mortem analysis (`/post-mortem`, Phase 12)
+
+- **Root-cause taxonomy**: `SelfReportedError` (`types/index.ts`) is a 5-value union —
+  `misread_question`, `calculation_error`, `time_pressure`, `knowledge_gap`, `guessed` —
+  replacing the earlier 3-value set from Phase 4. The field name and the Supabase column
+  (`self_reported_error text`) didn't need to change, only the values, so this was a values-only
+  migration with no schema/sync-layer impact. `components/post-mortem/error-tag-picker.tsx` is
+  the single shared picker for this taxonomy — used both for the inline quick-tag right after
+  answering (`FeedbackPanel`) and for retroactive tagging in the deep post-mortem review, so
+  the two never drift apart.
+- **Two tagging paths, one write surface**: the inline picker tags a mistake the moment it
+  happens (optional, `PracticeSession` never requires it — see Phase 3). Exam mode has no
+  inline tagging UI at all, so `/post-mortem`'s `MistakeReviewList` is the *only* way to tag
+  exam mistakes, and also serves as a catch-up path for anything skipped during practice.
+  Retroactive tagging goes through a second write path, `updateAttemptTag()` in
+  `lib/storage.ts`, alongside the original `recordAttempt()` — after calling it, callers also
+  call `markAttemptsDirty()` (`lib/cloud-sync.ts`) to un-mark that attempt as synced, since
+  Supabase's upsert-by-id means simply re-pushing it overwrites the stale tag with no separate
+  "update" endpoint needed.
+- **Stats engine (`lib/post-mortem.ts`)**: `getQualifyingAttempts()` — wrong, or slow even if
+  correct (`SLOW_ANSWER_THRESHOLD_SECONDS`, 90s) — and `computePostMortemStats()` — per-topic
+  error-tag breakdowns, time-loss warnings, overall tag distribution — are both pure functions
+  derived straight from the attempt log, same stats-layer principle as everywhere else in this
+  codebase. This is also the *only* input `/api/analyze-mistakes` ever receives — the client
+  computes the numbers, the server/AI only narrates them.
+- **`/api/analyze-mistakes`**: takes a `PostMortemStats` object (not raw attempts or question
+  text) and returns Hebrew `{ summary, recurringPatterns, timeLossWarnings, actionItems }` via
+  the same `zodOutputFormat` structured-output pattern as `/api/generate-questions`. Returns
+  `{ insufficientData: true }` below `MIN_TAGGED_FOR_ANALYSIS` (3) tagged mistakes rather than
+  asking the model to stretch thin data into false patterns. The offline/no-key fallback
+  (`buildTemplateAnalysis`) is a genuinely useful plain-Hebrew narrator over the exact same
+  stats object — e.g. "60% of your mistakes in Geometry are calculation errors" — not a
+  placeholder "AI unavailable" message, so the feature still delivers real value with no API
+  key configured.
+
 ## AI tutor integration
 
 `app/api/tutor/route.ts` is the single grounding point for all Claude calls (used by both

@@ -12,9 +12,11 @@ export function getQuestion(questionId: string): Question | undefined {
 }
 
 export const ERROR_REASON_LABELS: Record<SelfReportedError, string> = {
-  careless: "שגיאות תשומת לב",
-  didnt_know: "חוסר ידע בחומר",
-  ran_out_of_time: "לחץ זמן",
+  misread_question: "טעות בהבנת השאלה",
+  calculation_error: "טעות חישוב / אלגברה",
+  time_pressure: "ניהול זמנים / לחץ",
+  knowledge_gap: "חוסר ידע בנושא",
+  guessed: "ניחוש מושכל / ניחוש פראי",
 };
 
 export const SECTION_LABELS: Record<Section, string> = {
@@ -182,7 +184,7 @@ export function computeErrorInsights(attempts: Attempt[]): ErrorInsight[] {
       counts.set(reason, (counts.get(reason) ?? 0) + 1);
     }
 
-    let dominantReason: SelfReportedError = "careless";
+    let dominantReason: SelfReportedError = "misread_question";
     let max = 0;
     for (const [reason, count] of counts) {
       if (count > max) {
