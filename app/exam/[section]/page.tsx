@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Flag, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { recordAttempt } from "@/lib/storage";
+import { getAttempts, recordAttempt } from "@/lib/storage";
 import { saveExamResult } from "@/lib/exam-result";
 import { cacheQuestions } from "@/lib/question-cache";
 import { recordExamHistory, scaleScore } from "@/lib/exam-history";
@@ -29,7 +29,9 @@ function isValidSection(value: string): value is Section {
   return (VALID_SECTIONS as string[]).includes(value);
 }
 
-const EXAM_QUESTION_COUNT = 20;
+/** English gets two extra questions, matching the real exam's own
+ * per-section split — the other two sections keep the original 20. */
+const EXAM_QUESTION_COUNTS: Record<Section, number> = { quant: 20, verbal: 20, english: 22 };
 const EXAM_DURATION_SECONDS = 20 * 60;
 
 export default function ExamSectionPage() {
@@ -41,6 +43,11 @@ export default function ExamSectionPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
+  // Set when the pre-seeded question bank ran out of questions this
+  // student hasn't already solved and had to recycle some of their oldest
+  // solved ones to fill out the set (lib/exam-fetcher.ts) — a graceful
+  // notice rather than silently pretending every question is new.
+  const [recycledCount, setRecycledCount] = useState(0);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [flagged, setFlagged] = useState<boolean[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -60,18 +67,49 @@ export default function ExamSectionPage() {
       setLoading(true);
       setLoadError(false);
       try {
-        const half = EXAM_QUESTION_COUNT / 2;
-        const requestBatch = () =>
+        const targetCount = EXAM_QUESTION_COUNTS[section as Section];
+        const requestBatch = (count: number) =>
           fetch("/api/generate-questions", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ section, difficulty: "medium", count: half }),
+            body: JSON.stringify({ section, difficulty: "medium", count }),
           }).then((r) => r.json());
 
-        const [a, b] = await Promise.all([requestBatch(), requestBatch()]);
+        // Prefer the pre-seeded, deduplicated question bank
+        // (lib/exam-fetcher.ts) — falls back to live AI generation below
+        // for any shortfall, whether that's the whole set (bank not seeded
+        // / Supabase not configured) or just a thin remainder.
+        let loaded: Question[] = [];
+        let recycled = 0;
+        try {
+          const localSolvedIds = [...new Set(getAttempts().map((a) => a.questionId))];
+          const allocateRes = await fetch("/api/exam/allocate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ section, count: targetCount, excludeQuestionIds: localSolvedIds }),
+          }).then((r) => r.json());
+
+          if (allocateRes?.bankAvailable && Array.isArray(allocateRes.questions)) {
+            loaded = allocateRes.questions;
+            recycled = typeof allocateRes.recycledCount === "number" ? allocateRes.recycledCount : 0;
+          }
+        } catch {
+          // Bank allocation is a pure enhancement — any failure here just
+          // means the full amount gets topped up via generation below.
+        }
         if (cancelled) return;
 
-        const loaded: Question[] = [...(a.questions ?? []), ...(b.questions ?? [])];
+        const shortfall = targetCount - loaded.length;
+        if (shortfall > 0) {
+          const half = Math.ceil(shortfall / 2);
+          const batches =
+            shortfall > 1
+              ? await Promise.all([requestBatch(half), requestBatch(shortfall - half)])
+              : [await requestBatch(shortfall)];
+          if (cancelled) return;
+          for (const batch of batches) loaded = [...loaded, ...(batch.questions ?? [])];
+        }
+
         if (loaded.length === 0) {
           setLoadError(true);
           return;
@@ -81,6 +119,7 @@ export default function ExamSectionPage() {
         setQuestions(loaded);
         setAnswers(new Array(loaded.length).fill(null));
         setFlagged(new Array(loaded.length).fill(false));
+        setRecycledCount(recycled);
       } catch {
         if (!cancelled) setLoadError(true);
       } finally {
@@ -232,6 +271,14 @@ export default function ExamSectionPage() {
       />
 
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
+        {recycledCount > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+            {recycledCount === questions.length
+              ? "פתרתם כבר את כל השאלות הזמינות בבנק לקטע הזה — הסימולציה הזו חוזרת על שאלות ישנות."
+              : `${recycledCount} מתוך ${questions.length} השאלות בסימולציה הזו כבר נפתרו בעבר — לא נותרו מספיק שאלות חדשות בבנק.`}
+          </div>
+        )}
+
         <QuestionNavigator
           total={questions.length}
           currentIndex={currentIndex}

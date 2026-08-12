@@ -107,7 +107,42 @@ create table if not exists public.essay_attempts (
 create index if not exists essay_attempts_clerk_user_id_idx on public.essay_attempts (clerk_user_id);
 
 alter table public.essay_attempts enable row level security;
+
+-- Shared, pre-generated exam question bank (Phase 18) — populated by
+-- scripts/seed-question-bank.ts, read by app/api/exam/allocate/route.ts
+-- (lib/exam-fetcher.ts). Unlike `question_cache` above (which stores, per
+-- user, the AI questions *that specific user* was already served, purely so
+-- their own attempts stay resolvable across devices), this table is one
+-- global pool every signed-in user draws non-overlapping exam sets from —
+-- there is no clerk_user_id column here on purpose, since the content isn't
+-- scoped to any one student. Deduping "have I already solved this one" still
+-- happens per-user, but against `attempts`, not against this table.
+create table if not exists public.questions (
+  id uuid primary key,
+  section text not null,
+  topic text not null,
+  subtopic text not null,
+  difficulty integer not null,
+  type text not null,
+  body text not null,
+  passage text,
+  choices jsonb not null,
+  correct_answer integer not null,
+  explanation text not null,
+  media text,
+  created_at timestamptz not null default now()
+);
+
+-- The allocation engine's core query is "give me N unused rows for this
+-- section" — a composite index matches that access pattern directly, rather
+-- than relying on the primary key alone.
+create index if not exists questions_section_topic_idx on public.questions (section, topic);
+
+alter table public.questions enable row level security;
+
 -- No policies defined on any table above: every request is denied by
 -- default, including ones authenticated with the anon key. Only the
 -- service-role key (server-only, see lib/supabase-server.ts) can read or
--- write these tables.
+-- write these tables. `questions` is no exception even though its content
+-- isn't user-specific — the seed script and the allocation route are both
+-- server-side, so the client never needs direct access.
