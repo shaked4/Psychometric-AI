@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function formatElapsed(totalSeconds: number) {
@@ -18,6 +18,12 @@ interface PracticeHeaderProps {
   progressLabel: string;
   progressPct: number;
   elapsedSeconds: number;
+  /** Casual practice hides the running clock by default so answering
+   * doesn't feel timed/exam-like — the student can opt into seeing it.
+   * Exam mode and the essay timer are separate components and never pass
+   * this down, so this toggle has no effect on those strict timers. */
+  showTimer: boolean;
+  onToggleTimer: () => void;
   /** Lets the student jump straight to the results screen before answering
    * every question — omitted once the results screen is already showing,
    * since there's nothing left to submit at that point. */
@@ -29,6 +35,8 @@ export function PracticeHeader({
   progressLabel,
   progressPct,
   elapsedSeconds,
+  showTimer,
+  onToggleTimer,
   onSubmit,
 }: PracticeHeaderProps) {
   return (
@@ -55,12 +63,16 @@ export function PracticeHeader({
           </div>
         </div>
 
-        <div
+        <button
+          type="button"
+          onClick={onToggleTimer}
           dir="ltr"
-          className="shrink-0 rounded-full bg-muted px-3 py-1 text-sm font-medium tabular-nums text-muted-foreground"
+          aria-label={showTimer ? "הסתרת הטיימר" : "הצגת הטיימר"}
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-medium tabular-nums text-muted-foreground transition hover:bg-muted/70"
         >
-          {formatElapsed(elapsedSeconds)}
-        </div>
+          <Clock className="size-3.5" />
+          {showTimer && formatElapsed(elapsedSeconds)}
+        </button>
 
         {onSubmit && (
           <Button size="sm" onClick={onSubmit} className="shrink-0">

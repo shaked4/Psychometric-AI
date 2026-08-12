@@ -21,7 +21,30 @@ function barColor(index: number) {
   return "bg-red-500";
 }
 
-export function ReadinessIndexCard({ breakdown }: { breakdown: ReadinessBreakdown }) {
+export function ReadinessIndexCard({
+  breakdown,
+  hasAttempts,
+}: {
+  breakdown: ReadinessBreakdown;
+  hasAttempts: boolean;
+}) {
+  // A fresh account computes to index: 0 the same way a struggling one
+  // could — but 0 here means "no data yet," not "failing," so it gets a
+  // neutral empty state instead of the red gauge a real low score earns.
+  if (!hasAttempts) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-6 text-center shadow-sm sm:flex-row sm:justify-between sm:text-start">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Gauge className="size-4" />
+          מדד מוכנות
+        </div>
+        <p className="text-sm text-muted-foreground">
+          עדיין אין לכם מספיק תרגול כדי לחשב מדד מוכנות — הוא יופיע כאן אחרי כמה שאלות.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-6 shadow-sm sm:flex-row sm:items-center sm:gap-8">
       <div className="flex shrink-0 flex-col items-center gap-1.5 text-center">

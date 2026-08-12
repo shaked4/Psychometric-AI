@@ -19,9 +19,12 @@ export default function Home() {
           וחולשה, ובונה עבורכם תוכנית תרגול אישית — כמותי, מילולי ואנגלית.
         </p>
 
-        <Link href="/practice/quant" className={buttonVariants({ size: "lg" })}>
-          התחילו לתרגל
+        <Link href="/practice/custom" className={buttonVariants({ size: "lg" })}>
+          התחילו תרגול יומי קצר
         </Link>
+        <p className="text-sm text-muted-foreground">
+          כמה שאלות, בלי לחץ, בלי שעון — רק כדי להתחיל להכיר אתכם
+        </p>
       </div>
 
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-start shadow-sm">

@@ -52,7 +52,7 @@ export default function DashboardPage() {
         avgTimeSeconds={overall.avgTimeSeconds}
       />
 
-      <ReadinessIndexCard breakdown={readiness} />
+      <ReadinessIndexCard breakdown={readiness} hasAttempts={overall.totalAnswered > 0} />
 
       <RecommendedPracticeCard
         section={recommended?.section ?? null}

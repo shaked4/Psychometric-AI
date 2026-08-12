@@ -56,6 +56,10 @@ export function PracticeSession({
   const [results, setResults] = useState<SessionResultEntry[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
+  // Casual practice is untimed by default — the clock still runs
+  // internally (results/stats need it), it's just not displayed unless the
+  // student opts in. Exam mode uses its own separate, always-visible timer.
+  const [showTimer, setShowTimer] = useState(false);
 
   // Wall-clock based, independent of the display timer above, so it stays
   // accurate regardless of render timing. Starts at 0 (not Date.now(), which
@@ -160,6 +164,8 @@ export function PracticeSession({
         }
         progressPct={phase === "summary" ? 100 : (currentIndex / questions.length) * 100}
         elapsedSeconds={elapsedSeconds}
+        showTimer={showTimer}
+        onToggleTimer={() => setShowTimer((v) => !v)}
         onSubmit={phase === "question" ? handleSubmitClick : undefined}
       />
 
