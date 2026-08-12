@@ -2,12 +2,15 @@
 
 import { useAttempts } from "@/lib/use-attempts";
 import { useExamHistory } from "@/lib/use-exam-history";
+import { useEssayAttempts } from "@/lib/use-essay-attempts";
 import { computeErrorInsights, computeOverallStats, getRecommendedTopic } from "@/lib/stats";
 import { computeReviewQueue } from "@/lib/spaced-repetition";
 import { computeTopicMasteryMatrix } from "@/lib/mastery";
 import { computeReadinessIndex } from "@/lib/readiness";
 import { computePostMortemStats } from "@/lib/post-mortem";
+import { computeTodayProgress } from "@/lib/daily-goal";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
+import { DailyGoalCard } from "@/components/dashboard/daily-goal-card";
 import { TopicMasteryCard } from "@/components/dashboard/topic-mastery-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { RecommendedPracticeCard } from "@/components/dashboard/recommended-practice-card";
@@ -26,8 +29,10 @@ export default function DashboardPage() {
   // first client render, then reacts whenever recordAttempt() writes.
   const attempts = useAttempts();
   const examHistory = useExamHistory();
+  const essayAttempts = useEssayAttempts();
 
   const overall = computeOverallStats(attempts);
+  const todayProgress = computeTodayProgress(attempts, essayAttempts);
   const masteryMatrix = computeTopicMasteryMatrix(attempts);
   const insights = computeErrorInsights(attempts);
   const recommended = getRecommendedTopic(masteryMatrix);
@@ -50,6 +55,12 @@ export default function DashboardPage() {
         accuracyPct={overall.accuracyPct}
         streakDays={overall.streakDays}
         avgTimeSeconds={overall.avgTimeSeconds}
+      />
+
+      <DailyGoalCard
+        questionsToday={todayProgress.questionsToday}
+        essaysToday={todayProgress.essaysToday}
+        streakDays={overall.streakDays}
       />
 
       <ReadinessIndexCard breakdown={readiness} hasAttempts={overall.totalAnswered > 0} />

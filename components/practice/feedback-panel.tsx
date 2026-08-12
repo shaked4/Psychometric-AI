@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Sparkles, Target, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
 import { ErrorTagPicker } from "@/components/post-mortem/error-tag-picker";
+import { SimilarQuestionDrill } from "@/components/practice/similar-question-drill";
 import { useTutorExplain } from "@/lib/use-tutor-explain";
 import type { Question, SelfReportedError } from "@/types";
 
@@ -25,7 +26,7 @@ export function FeedbackPanel({
   selfReportedError,
   onSelectErrorReason,
 }: FeedbackPanelProps) {
-  const { reply: aiReply, loading, explainDifferently } = useTutorExplain(
+  const { reply: aiReply, loading, mode, explainDifferently, analyzeTrap } = useTutorExplain(
     question,
     chosenAnswer,
     selfReportedError
@@ -71,21 +72,36 @@ export function FeedbackPanel({
       )}
 
       <div className="border-t border-border pt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={explainDifferently}
-          disabled={loading}
-        >
-          <Sparkles className="size-4" />
-          הסבר בדרך אחרת
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={explainDifferently}
+            disabled={loading}
+          >
+            <Sparkles className="size-4" />
+            הסבר בדרך אחרת
+          </Button>
+
+          {!isCorrect && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={analyzeTrap}
+              disabled={loading}
+            >
+              <Target className="size-4" />
+              זיהוי המלכודת
+            </Button>
+          )}
+        </div>
 
         {loading && (
           <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            חושב על דרך הסברה טובה יותר...
+            {mode === "trap" ? "מנתח את המלכודת בשאלה..." : "חושב על דרך הסברה טובה יותר..."}
           </div>
         )}
 
@@ -95,6 +111,13 @@ export function FeedbackPanel({
           </div>
         )}
       </div>
+
+      {!isCorrect && (
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-medium text-muted-foreground">רוצים לבדוק שהבנתם? נסו שאלה דומה:</p>
+          <SimilarQuestionDrill question={question} />
+        </div>
+      )}
     </div>
   );
 }

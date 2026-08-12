@@ -35,6 +35,7 @@ const CORE_ROUTES = [
 const MORE_ROUTES_MATCH = ["/practice/review", "/practice/adaptive", "/practice/custom"];
 
 const MORE_ROUTES = [
+  { href: "/cheatsheets", label: "גיליון נוסחאות" },
   { href: "/practice/review", label: "חזרה מרווחת" },
   { href: "/practice/adaptive", label: "תרגול אדפטיבי" },
   { href: "/practice/custom", label: "תרגול מותאם AI" },

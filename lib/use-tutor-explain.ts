@@ -5,9 +5,24 @@ import type { Question, SelfReportedError } from "@/types";
 
 const GENERIC_ERROR = "אירעה שגיאה בטעינת ההסבר. נסו שוב מאוחר יותר.";
 
-/** Shared client for the "explain differently" one-shot call to /api/tutor —
- * used by both the in-session feedback panel and the history page, so the
- * request shape and error handling live in exactly one place. */
+const EXPLAIN_DIFFERENTLY_PROMPT = "תסביר לי את זה בדרך אחרת, בבקשה.";
+
+const TRAP_ANALYSIS_PROMPT =
+  "אני רוצה להבין בדיוק מה המלכודת בשאלה הזו: למה התשובה שבחרתי הייתה מפתה, ומה סוג המלכודת " +
+  "הספציפית כאן (הסחת דעת מכוונת, ניסוח שגורם לפרשנות שגויה, שאלה שגוזלת הרבה זמן, טעות חישוב " +
+  "נפוצה וכו'). תן שם קצר וברור לסוג המלכודת, ואז הסבר בקצרה איך לזהות ולהימנע ממנה בפעם הבאה.";
+
+export type TutorInsightMode = "explain" | "trap";
+
+/** Shared client for one-shot calls to /api/tutor — used by the in-session
+ * feedback panel and the post-mortem review list, so the request shape and
+ * error handling live in exactly one place. Two prompt variants share the
+ * same reply/loading state (only one insight is ever open at a time in the
+ * UI, same as before this was generalized) — `mode` just lets callers label
+ * whichever one produced the current reply. Both reuse /api/tutor's
+ * existing system prompt unchanged: it's already grounded in the full
+ * question context (chosen vs. correct answer, official explanation), so a
+ * differently-framed user question needs no server-side changes. */
 export function useTutorExplain(
   question: Question,
   chosenAnswer: number,
@@ -15,8 +30,10 @@ export function useTutorExplain(
 ) {
   const [reply, setReply] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<TutorInsightMode | null>(null);
 
-  async function explainDifferently() {
+  async function ask(nextMode: TutorInsightMode, userMessage: string) {
+    setMode(nextMode);
     setLoading(true);
     setReply(null);
     try {
@@ -36,7 +53,7 @@ export function useTutorExplain(
           },
           studentAnswer: chosenAnswer,
           selfReportedError,
-          messages: [{ role: "user", content: "תסביר לי את זה בדרך אחרת, בבקשה." }],
+          messages: [{ role: "user", content: userMessage }],
         }),
       });
       const data = await res.json();
@@ -48,5 +65,11 @@ export function useTutorExplain(
     }
   }
 
-  return { reply, loading, explainDifferently };
+  return {
+    reply,
+    loading,
+    mode,
+    explainDifferently: () => ask("explain", EXPLAIN_DIFFERENTLY_PROMPT),
+    analyzeTrap: () => ask("trap", TRAP_ANALYSIS_PROMPT),
+  };
 }

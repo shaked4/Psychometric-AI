@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ChevronDown, Clock, Loader2, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, Loader2, Sparkles, Target, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
 import { ErrorTagPicker } from "@/components/post-mortem/error-tag-picker";
+import { SimilarQuestionDrill } from "@/components/practice/similar-question-drill";
 import { useTutorExplain } from "@/lib/use-tutor-explain";
 import { SECTION_LABELS } from "@/lib/stats";
 import { updateAttemptTag } from "@/lib/storage";
@@ -21,7 +22,7 @@ function formatTime(seconds: number) {
 
 function MistakeReviewCard({ attempt, question, isSlow }: QualifyingAttempt) {
   const [expanded, setExpanded] = useState(false);
-  const { reply, loading, explainDifferently } = useTutorExplain(
+  const { reply, loading, mode, explainDifferently, analyzeTrap } = useTutorExplain(
     question,
     attempt.chosenAnswer,
     attempt.selfReportedError
@@ -110,27 +111,49 @@ function MistakeReviewCard({ attempt, question, isSlow }: QualifyingAttempt) {
               <MathText text={question.explanation} />
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 self-start"
-              onClick={explainDifferently}
-              disabled={loading}
-            >
-              <Sparkles className="size-4" />
-              הסבר בדרך אחרת מ-AI
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={explainDifferently}
+                disabled={loading}
+              >
+                <Sparkles className="size-4" />
+                הסבר בדרך אחרת מ-AI
+              </Button>
+
+              {!attempt.isCorrect && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={analyzeTrap}
+                  disabled={loading}
+                >
+                  <Target className="size-4" />
+                  זיהוי המלכודת
+                </Button>
+              )}
+            </div>
 
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
-                חושב...
+                {mode === "trap" ? "מנתח את המלכודת בשאלה..." : "חושב..."}
               </div>
             )}
 
             {reply && !loading && (
               <div className="rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
                 <MathText text={reply} />
+              </div>
+            )}
+
+            {!attempt.isCorrect && (
+              <div className="flex flex-col gap-2 border-t border-border pt-3">
+                <p className="text-sm font-medium text-muted-foreground">רוצים לבדוק שהבנתם? נסו שאלה דומה:</p>
+                <SimilarQuestionDrill question={question} />
               </div>
             )}
           </div>
