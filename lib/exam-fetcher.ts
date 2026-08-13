@@ -15,19 +15,26 @@ import type { Question, Section } from "@/types";
  * component — since it takes a service-role SupabaseClient.
  */
 
+/**
+ * Column names/set here match the `questions` table as it actually exists
+ * in Supabase today — `options`/`correct_index` rather than `choices`/
+ * `correct_answer`, and no `type`/`passage`/`media` columns at all (the
+ * table was hand-created via the Table Editor before this feature's SQL
+ * migration was written, and diverged from supabase/schema.sql). Every row
+ * is treated as a plain "mcq": any reading-comprehension passage gets
+ * folded into `body` at write time (see scripts/seed-hardcoded-questions.ts
+ * and scripts/seed-question-bank.ts) rather than kept separate.
+ */
 interface QuestionRow {
   id: string;
   section: Section;
   topic: string;
   subtopic: string;
   difficulty: number;
-  type: Question["type"];
   body: string;
-  passage: string | null;
-  choices: string[];
-  correct_answer: number;
+  options: string[];
+  correct_index: number;
   explanation: string;
-  media: string | null;
   created_at: string;
 }
 
@@ -38,13 +45,13 @@ function rowToQuestion(row: QuestionRow): Question {
     topic: row.topic,
     subtopic: row.subtopic,
     difficulty: row.difficulty,
-    type: row.type,
+    type: "mcq",
     body: row.body,
-    passage: row.passage,
-    choices: row.choices,
-    correctAnswer: row.correct_answer,
+    passage: null,
+    choices: row.options,
+    correctAnswer: row.correct_index,
     explanation: row.explanation,
-    media: row.media,
+    media: null,
     createdAt: row.created_at,
   };
 }
@@ -116,7 +123,7 @@ export async function allocateExamQuestions({
 
   const { data: poolRows, error: poolError } = await supabase
     .from("questions")
-    .select("id, section, topic, subtopic, difficulty, type, body, passage, choices, correct_answer, explanation, media, created_at")
+    .select("id, section, topic, subtopic, difficulty, body, options, correct_index, explanation, created_at")
     .eq("section", section)
     .limit(POOL_SCAN_LIMIT);
 

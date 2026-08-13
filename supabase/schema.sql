@@ -109,27 +109,36 @@ create index if not exists essay_attempts_clerk_user_id_idx on public.essay_atte
 alter table public.essay_attempts enable row level security;
 
 -- Shared, pre-generated exam question bank (Phase 18) — populated by
--- scripts/seed-question-bank.ts, read by app/api/exam/allocate/route.ts
--- (lib/exam-fetcher.ts). Unlike `question_cache` above (which stores, per
--- user, the AI questions *that specific user* was already served, purely so
--- their own attempts stay resolvable across devices), this table is one
--- global pool every signed-in user draws non-overlapping exam sets from —
--- there is no clerk_user_id column here on purpose, since the content isn't
--- scoped to any one student. Deduping "have I already solved this one" still
--- happens per-user, but against `attempts`, not against this table.
+-- scripts/seed-question-bank.ts / scripts/seed-hardcoded-questions.ts, read
+-- by app/api/exam/allocate/route.ts (lib/exam-fetcher.ts). Unlike
+-- `question_cache` above (which stores, per user, the AI questions *that
+-- specific user* was already served, purely so their own attempts stay
+-- resolvable across devices), this table is one global pool every
+-- signed-in user draws non-overlapping exam sets from — there is no
+-- clerk_user_id column here on purpose, since the content isn't scoped to
+-- any one student. Deduping "have I already solved this one" still happens
+-- per-user, but against `attempts`, not against this table.
+--
+-- Column names/set below match what's actually deployed, not the original
+-- Phase 18 design: this table was first hand-created via the Supabase
+-- Table Editor before this migration existed, using `options`/
+-- `correct_index` instead of `choices`/`correct_answer`, and without
+-- `type`/`passage`/`media` at all. Rather than fight that with more ALTERs,
+-- lib/exam-fetcher.ts and both seed scripts were adapted to match reality —
+-- every row is treated as a plain MCQ, with any reading-comprehension
+-- passage folded into `body` at write time since there's no separate
+-- column for it. If real passage support is ever wanted, add a `passage
+-- text` column and update all three of those files together.
 create table if not exists public.questions (
   id uuid primary key,
   section text not null,
   topic text not null,
   subtopic text not null,
   difficulty integer not null,
-  type text not null,
   body text not null,
-  passage text,
-  choices jsonb not null,
-  correct_answer integer not null,
+  options jsonb not null,
+  correct_index integer not null,
   explanation text not null,
-  media text,
   created_at timestamptz not null default now()
 );
 

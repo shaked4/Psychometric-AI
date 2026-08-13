@@ -28,6 +28,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import WS from "ws";
 import { getAllTopics } from "@/lib/stats";
 import { CHEATSHEET_CARDS } from "@/lib/cheatsheets";
 import {
@@ -38,6 +39,16 @@ import {
   type Difficulty,
 } from "@/lib/question-generation";
 import type { Question, Section } from "@/types";
+
+// @supabase/supabase-js always constructs a realtime client, which throws
+// at construction time on any Node version without a native global
+// WebSocket (Node < 22) — this script only ever does plain REST
+// select/insert calls, never realtime subscriptions, but the crash happens
+// regardless unless *some* WebSocket implementation is present. `ws` is
+// this script's only extra dependency, added purely for this polyfill.
+if (typeof globalThis.WebSocket === "undefined") {
+  (globalThis as { WebSocket?: unknown }).WebSocket = WS;
+}
 
 /**
  * Deliberately not a reuse of lib/supabase-server.ts's getSupabaseServerClient()
@@ -158,23 +169,32 @@ async function generateOne(
   return null;
 }
 
+// Column names/set match the `questions` table as it actually exists in
+// Supabase — `options`/`correct_index` rather than `choices`/
+// `correct_answer`, and no `type`/`passage`/`media` columns (the table was
+// hand-created via the Table Editor before supabase/schema.sql was
+// written, and diverged from it). Any reading-comprehension passage gets
+// folded into `body` instead of kept separate, since there's nowhere else
+// to put it — flagged with a warning so it isn't a silent quality loss.
 async function insertBatch(supabase: SupabaseClient, questions: Question[]) {
   if (questions.length === 0) return;
-  const rows = questions.map((q) => ({
-    id: q.id,
-    section: q.section,
-    topic: q.topic,
-    subtopic: q.subtopic,
-    difficulty: q.difficulty,
-    type: q.type,
-    body: q.body,
-    passage: q.passage,
-    choices: q.choices,
-    correct_answer: q.correctAnswer,
-    explanation: q.explanation,
-    media: q.media,
-    created_at: q.createdAt,
-  }));
+  const rows = questions.map((q) => {
+    if (q.passage) {
+      console.warn(`  ! ${q.section}/${q.subtopic}: folding passage into body — 'passage' column doesn't exist on 'questions'`);
+    }
+    return {
+      id: q.id,
+      section: q.section,
+      topic: q.topic,
+      subtopic: q.subtopic,
+      difficulty: q.difficulty,
+      body: q.passage ? `${q.passage}\n\n${q.body}` : q.body,
+      options: q.choices,
+      correct_index: q.correctAnswer,
+      explanation: q.explanation,
+      created_at: q.createdAt,
+    };
+  });
   const { error } = await supabase.from("questions").insert(rows);
   if (error) console.error(`  ! insert error:`, error.message);
 }
