@@ -48,6 +48,11 @@ export default function ExamSectionPage() {
   // solved ones to fill out the set (lib/exam-fetcher.ts) — a graceful
   // notice rather than silently pretending every question is new.
   const [recycledCount, setRecycledCount] = useState(0);
+  // Set when the bank had genuine questions but not enough to fill a full
+  // exam, and live AI top-up was unavailable — rather than padding the real
+  // bank content with dozens of repeats of the same ~3 static mock
+  // questions, the exam is just shorter than usual.
+  const [shortExamNotice, setShortExamNotice] = useState<{ actual: number; target: number } | null>(null);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [flagged, setFlagged] = useState<boolean[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -99,6 +104,14 @@ export default function ExamSectionPage() {
         }
         if (cancelled) return;
 
+        // Real bank content already in hand — don't dilute it with the
+        // live-generation route's own offline fallback, which just cycles
+        // a handful of static mock questions to pad out whatever count it's
+        // asked for. An empty bank (hadBankQuestions === false) still gets
+        // that fallback below, exactly reproducing this page's original
+        // pre-bank behavior.
+        const hadBankQuestions = loaded.length > 0;
+
         const shortfall = targetCount - loaded.length;
         if (shortfall > 0) {
           const half = Math.ceil(shortfall / 2);
@@ -107,7 +120,10 @@ export default function ExamSectionPage() {
               ? await Promise.all([requestBatch(half), requestBatch(shortfall - half)])
               : [await requestBatch(shortfall)];
           if (cancelled) return;
-          for (const batch of batches) loaded = [...loaded, ...(batch.questions ?? [])];
+          for (const batch of batches) {
+            if (hadBankQuestions && batch.offline) continue;
+            loaded = [...loaded, ...(batch.questions ?? [])];
+          }
         }
 
         if (loaded.length === 0) {
@@ -120,6 +136,7 @@ export default function ExamSectionPage() {
         setAnswers(new Array(loaded.length).fill(null));
         setFlagged(new Array(loaded.length).fill(false));
         setRecycledCount(recycled);
+        setShortExamNotice(hadBankQuestions && loaded.length < targetCount ? { actual: loaded.length, target: targetCount } : null);
       } catch {
         if (!cancelled) setLoadError(true);
       } finally {
@@ -276,6 +293,12 @@ export default function ExamSectionPage() {
             {recycledCount === questions.length
               ? "פתרתם כבר את כל השאלות הזמינות בבנק לקטע הזה — הסימולציה הזו חוזרת על שאלות ישנות."
               : `${recycledCount} מתוך ${questions.length} השאלות בסימולציה הזו כבר נפתרו בעבר — לא נותרו מספיק שאלות חדשות בבנק.`}
+          </div>
+        )}
+
+        {shortExamNotice && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+            {`הסימולציה כוללת ${shortExamNotice.actual} שאלות במקום ${shortExamNotice.target} — בנק השאלות לקטע הזה עדיין קטן מדי ליצירת שאלות AI חדשות כרגע.`}
           </div>
         )}
 
