@@ -49,6 +49,15 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = getSupabaseServerClient();
+  // Temporary diagnostic (see CLAUDE.md-adjacent debugging notes, remove
+  // once Vercel env vars are confirmed live): getSupabaseServerClient()
+  // returns null whenever either env var is falsy, and NEXT_PUBLIC_* values
+  // are inlined at build time — so if this logs "resolved: false" with
+  // "url present: false" even after redeploying with the var set in the
+  // Vercel dashboard, the deployment didn't actually rebuild.
+  console.log(
+    `[exam/allocate] Supabase client resolved: ${supabase !== null} — NEXT_PUBLIC_SUPABASE_URL present: ${Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)}, SUPABASE_SERVICE_ROLE_KEY present: ${Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)}`
+  );
 
   const result = await allocateExamQuestions({
     supabase,
