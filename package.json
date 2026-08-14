@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:questions": "tsx --env-file=.env.local scripts/seed-question-bank.ts",
-    "seed:questions:hardcoded": "tsx --env-file=.env.local scripts/seed-hardcoded-questions.ts"
+    "seed:questions:hardcoded": "tsx --env-file=.env.local scripts/seed-hardcoded-questions.ts",
+    "seed:questions:quant": "tsx --env-file=.env.local scripts/seed-quant-20.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
