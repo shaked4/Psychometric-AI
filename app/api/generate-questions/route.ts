@@ -176,29 +176,40 @@ export async function POST(req: NextRequest) {
 
   const safeCount = Math.min(10, Math.max(1, Math.round(count)));
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
+    }
+
+    const client = new Anthropic({ apiKey });
+
+    // A key is configured, so make a genuine effort to return real content:
+    // a refusal, a parse failure, or a transient API error on the first try
+    // shouldn't immediately dump the user into the 4-question mock bank when
+    // a retry stands a good chance of succeeding. Only after both attempts
+    // fail to produce valid questions do we fall back, and that fallback is
+    // always flagged via `offline: true` so callers (e.g. the continuous
+    // stream in /practice/custom) can react instead of looping mock content
+    // forever.
+    for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+      try {
+        const questions = await generateOnce(client, section, topic, subtopic, difficulty, safeCount);
+        if (questions) return NextResponse.json({ questions });
+      } catch (error) {
+        console.error(`[generate-questions] Generation error (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}):`, error);
+      }
+    }
+
+    return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
+  } catch (error) {
+    // Catch-all for anything not already handled above (e.g. the Anthropic
+    // client itself throwing, or an unexpected error building the mock
+    // fallback) — previously this would surface in Vercel as a bare 500
+    // with no way to tell what actually happened. Still returns a playable
+    // set of questions rather than a hard error, matching this route's
+    // everything-degrades-gracefully fallback philosophy.
+    console.error("[generate-questions] Unhandled error:", error);
     return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
   }
-
-  const client = new Anthropic({ apiKey });
-
-  // A key is configured, so make a genuine effort to return real content:
-  // a refusal, a parse failure, or a transient API error on the first try
-  // shouldn't immediately dump the user into the 4-question mock bank when
-  // a retry stands a good chance of succeeding. Only after both attempts
-  // fail to produce valid questions do we fall back, and that fallback is
-  // always flagged via `offline: true` so callers (e.g. the continuous
-  // stream in /practice/custom) can react instead of looping mock content
-  // forever.
-  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
-    try {
-      const questions = await generateOnce(client, section, topic, subtopic, difficulty, safeCount);
-      if (questions) return NextResponse.json({ questions });
-    } catch (error) {
-      console.error(`Generate questions error (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}):`, error);
-    }
-  }
-
-  return NextResponse.json({ questions: buildMockQuestions(section, subtopic, safeCount), offline: true });
 }
