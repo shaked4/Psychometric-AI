@@ -110,6 +110,39 @@ const HARD_FRACTION_OF_REST = 0.25;
 const MIN_COUNT_FOR_DI_BAND = 10;
 
 /**
+ * Reserves one contiguous data-interpretation group *before* the random
+ * count-limited draw below runs — picking a group afterward (from an
+ * already-count-trimmed, randomly shuffled selection) would only include it
+ * by chance, and could easily include 1-3 of its 4 questions instead of the
+ * whole block. Prefers a group with the fewest already-solved members
+ * (ideally none), so reserving it doesn't need to eat into the recycle
+ * budget unless every candidate group has some solved questions in it.
+ */
+function pickDiBlock(pool: Question[], solvedAt: Map<string, number>, budget: number): Question[] {
+  if (budget <= 0) return [];
+
+  const groups = new Map<string, Question[]>();
+  for (const q of pool) {
+    if (!q.groupId) continue;
+    const arr = groups.get(q.groupId) ?? [];
+    arr.push(q);
+    groups.set(q.groupId, arr);
+  }
+
+  const candidates = shuffle([...groups.values()]).sort(
+    (a, b) => a.filter((q) => solvedAt.has(q.id)).length - b.filter((q) => solvedAt.has(q.id)).length
+  );
+
+  const block: Question[] = [];
+  for (const group of candidates) {
+    if (group.length > 0 && block.length + group.length <= budget) {
+      block.push(...[...group].sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0)));
+    }
+  }
+  return block;
+}
+
+/**
  * Orders an already-selected set of exam questions into a difficulty curve:
  * an easy warm-up band, a medium band, one contiguous data-interpretation
  * block (if the pool has a complete group that fits the budget), then a hard
@@ -254,22 +287,30 @@ export async function allocateExamQuestions({
     }
   }
 
-  const unsolved = shuffle(pool.filter((q) => !solvedAt.has(q.id)));
+  const diBudget = count >= MIN_COUNT_FOR_DI_BAND ? Math.round(count * DI_BAND_FRACTION) : 0;
+  const reserved = pickDiBlock(pool, solvedAt, diBudget);
+  const reservedIds = new Set(reserved.map((q) => q.id));
+  const remainingCount = count - reserved.length;
 
-  let selected: Question[];
-  let recycledCount: number;
-  if (unsolved.length >= count) {
-    selected = unsolved.slice(0, count);
-    recycledCount = 0;
+  const unsolvedRest = shuffle(pool.filter((q) => !solvedAt.has(q.id) && !reservedIds.has(q.id)));
+
+  let others: Question[];
+  let recycledFromOthers: number;
+  if (unsolvedRest.length >= remainingCount) {
+    others = unsolvedRest.slice(0, remainingCount);
+    recycledFromOthers = 0;
   } else {
-    const needed = count - unsolved.length;
-    const solvedPool = pool
-      .filter((q) => solvedAt.has(q.id))
-      .sort((a, b) => (solvedAt.get(a.id) ?? 0) - (solvedAt.get(b.id) ?? 0));
-    const recycled = solvedPool.slice(0, needed);
-    selected = [...unsolved, ...recycled];
-    recycledCount = recycled.length;
+    const needed = remainingCount - unsolvedRest.length;
+    const solvedRestPool = pool
+      .filter((q) => solvedAt.has(q.id) && !reservedIds.has(q.id))
+      .sort((a, b) => (solvedAt.get(a.id) ?? 0) - (solvedAt.get(b.id) ?? 0))
+      .slice(0, needed);
+    others = [...unsolvedRest, ...solvedRestPool];
+    recycledFromOthers = solvedRestPool.length;
   }
+
+  const recycledCount = recycledFromOthers + reserved.filter((q) => solvedAt.has(q.id)).length;
+  const selected = [...reserved, ...others];
 
   return {
     questions: applyDifficultyCurve(selected),
