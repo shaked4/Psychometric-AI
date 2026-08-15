@@ -1,5 +1,6 @@
 import { ImageIcon } from "lucide-react";
 import { MathText } from "@/components/practice/math-text";
+import { DataInterpretationTable } from "@/components/practice/data-interpretation-table";
 import type { Question } from "@/types";
 
 interface QuestionCardProps {
@@ -25,13 +26,17 @@ export function QuestionCard({ question }: QuestionCardProps) {
         </div>
       )}
 
-      {question.media && (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40">
-          <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-            <ImageIcon className="size-6" />
-            <span>תרשים / דיאגרמה</span>
+      {question.diagram ? (
+        <DataInterpretationTable diagram={question.diagram} />
+      ) : (
+        question.media && (
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40">
+            <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+              <ImageIcon className="size-6" />
+              <span>תרשים / דיאגרמה</span>
+            </div>
           </div>
-        </div>
+        )
       )}
 
       <p dir={dir} className="text-lg leading-loose text-card-foreground">

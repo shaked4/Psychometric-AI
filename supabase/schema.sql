@@ -139,13 +139,48 @@ create table if not exists public.questions (
   options jsonb not null,
   correct_index integer not null,
   explanation text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Phase 19 (data interpretation blocks): nullable so every question
+  -- seeded before this migration is untouched. `group_id` ties together the
+  -- set of questions that share one `diagram_data` dataset (e.g. 4
+  -- questions reading the same table); `group_order` is their 0-based
+  -- position within that group so lib/exam-fetcher.ts can render/order them
+  -- in the sequence they were authored in rather than shuffled. Denormalized
+  -- (each row in a group carries its own identical copy of `diagram_data`)
+  -- rather than a separate `question_groups` table + foreign key, since a
+  -- group is only ever 3-5 rows and this avoids a join the allocation
+  -- engine's single pool query would otherwise need. See
+  -- lib/exam-fetcher.ts's applyDifficultyCurve() for how the block is kept
+  -- contiguous, and components/practice/data-interpretation-table.tsx for
+  -- how `diagram_data` renders.
+  group_id uuid,
+  group_order integer,
+  diagram_data jsonb
 );
 
 -- The allocation engine's core query is "give me N unused rows for this
 -- section" — a composite index matches that access pattern directly, rather
 -- than relying on the primary key alone.
 create index if not exists questions_section_topic_idx on public.questions (section, topic);
+
+-- Lets lib/exam-fetcher.ts's applyDifficultyCurve() gather every question in
+-- a data-interpretation group efficiently; most rows have a null group_id
+-- and are irrelevant to that lookup, hence the partial index.
+create index if not exists questions_group_id_idx on public.questions (group_id) where group_id is not null;
+
+-- ---------------------------------------------------------------------------
+-- Migration (Phase 19): run this against an existing database where
+-- `questions` was already created without the three columns above — e.g. via
+-- the Supabase SQL Editor, followed by `NOTIFY pgrst, 'reload schema';` so
+-- PostgREST picks up the new columns immediately instead of waiting for its
+-- next cache refresh. Safe to re-run (IF NOT EXISTS).
+--
+--   alter table public.questions add column if not exists group_id uuid;
+--   alter table public.questions add column if not exists group_order integer;
+--   alter table public.questions add column if not exists diagram_data jsonb;
+--   create index if not exists questions_group_id_idx on public.questions (group_id) where group_id is not null;
+--   notify pgrst, 'reload schema';
+-- ---------------------------------------------------------------------------
 
 alter table public.questions enable row level security;
 

@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Question, Section } from "@/types";
+import type { DiagramData, Question, Section } from "@/types";
 
 /**
  * Smart exam allocation engine (Phase 18) — draws non-overlapping,
@@ -24,6 +24,13 @@ import type { Question, Section } from "@/types";
  * is treated as a plain "mcq": any reading-comprehension passage gets
  * folded into `body` at write time (see scripts/seed-hardcoded-questions.ts
  * and scripts/seed-question-bank.ts) rather than kept separate.
+ *
+ * `group_id`/`group_order`/`diagram_data` (Phase 19, data interpretation
+ * blocks) are a later, optional addition to this same hand-created table —
+ * see supabase/schema.sql for the ALTER TABLE migration. They're queried
+ * defensively below (BASE_COLUMNS vs EXTENDED_COLUMNS) so allocation still
+ * works before that migration has been run, same "everything degrades
+ * independently" philosophy as the rest of this app.
  */
 interface QuestionRow {
   id: string;
@@ -36,6 +43,9 @@ interface QuestionRow {
   correct_index: number;
   explanation: string;
   created_at: string;
+  group_id?: string | null;
+  group_order?: number | null;
+  diagram_data?: DiagramData | null;
 }
 
 function rowToQuestion(row: QuestionRow): Question {
@@ -53,6 +63,9 @@ function rowToQuestion(row: QuestionRow): Question {
     explanation: row.explanation,
     media: null,
     createdAt: row.created_at,
+    groupId: row.group_id ?? null,
+    groupOrder: row.group_order ?? null,
+    diagram: row.diagram_data ?? null,
   };
 }
 
@@ -72,6 +85,80 @@ function shuffle<T>(items: T[]): T[] {
 // cheap. Revisit upward if scripts/seed-question-bank.ts is ever run with a
 // per-subtopic count that pushes a section's total past this.
 const POOL_SCAN_LIMIT = 2000;
+
+const BASE_COLUMNS = "id, section, topic, subtopic, difficulty, body, options, correct_index, explanation, created_at";
+const EXTENDED_COLUMNS = `${BASE_COLUMNS}, group_id, group_order, diagram_data`;
+
+/** Postgres "column does not exist" — distinct from a real query failure,
+ * meaning the group_id/group_order/diagram_data migration
+ * (supabase/schema.sql) hasn't been run against this database yet. */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * A block of questions sharing one data-interpretation diagram must land in
+ * the exam contiguously and in their authored order (group_order) — mixing
+ * or splitting them would leave a question referencing "the table above"
+ * with nothing above it. Below is where that block is carved out of the
+ * pool before the remaining difficulty-curve ordering runs.
+ */
+const DI_BAND_FRACTION = 0.2;
+const EASY_FRACTION_OF_REST = 0.25;
+const HARD_FRACTION_OF_REST = 0.25;
+// A 4-question diagram block eating a fixed chunk of a very short exam would
+// dominate it disproportionately — below this many total questions, skip the
+// data-interpretation band entirely and just apply the plain difficulty curve.
+const MIN_COUNT_FOR_DI_BAND = 10;
+
+/**
+ * Orders an already-selected set of exam questions into a difficulty curve:
+ * an easy warm-up band, a medium band, one contiguous data-interpretation
+ * block (if the pool has a complete group that fits the budget), then a hard
+ * band — e.g. for a 20-question exam this lands at questions 1–4 easy, 5–12
+ * medium, 13–16 data interpretation, 17–20 hard. Every fraction is relative
+ * to the actual selected count, so it degrades gracefully for shorter exams
+ * (recycling shortfalls) or sections with no seeded diagram groups (verbal,
+ * english) — the DI block is simply empty and its budget folds back into the
+ * plain curve.
+ */
+function applyDifficultyCurve(selected: Question[]): Question[] {
+  const groups = new Map<string, Question[]>();
+  const ungrouped: Question[] = [];
+  for (const q of selected) {
+    if (q.groupId) {
+      const arr = groups.get(q.groupId) ?? [];
+      arr.push(q);
+      groups.set(q.groupId, arr);
+    } else {
+      ungrouped.push(q);
+    }
+  }
+
+  const diBudget = selected.length >= MIN_COUNT_FOR_DI_BAND ? Math.round(selected.length * DI_BAND_FRACTION) : 0;
+  const diBlock: Question[] = [];
+  if (diBudget > 0) {
+    for (const group of shuffle([...groups.values()])) {
+      if (group.length > 0 && diBlock.length + group.length <= diBudget) {
+        diBlock.push(...[...group].sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0)));
+      }
+    }
+  }
+
+  // Grouped questions that weren't picked for the DI block still stand on
+  // their own (each row carries its own copy of `diagram`), so they simply
+  // rejoin the regular pool rather than being dropped.
+  const usedIds = new Set(diBlock.map((q) => q.id));
+  const rest = shuffle([...ungrouped, ...selected.filter((q) => q.groupId && !usedIds.has(q.id))]).sort(
+    (a, b) => a.difficulty - b.difficulty
+  );
+
+  const easyN = Math.round(rest.length * EASY_FRACTION_OF_REST);
+  const hardN = Math.round(rest.length * HARD_FRACTION_OF_REST);
+  const easyBand = rest.slice(0, easyN);
+  const hardBand = rest.slice(rest.length - hardN);
+  const mediumBand = rest.slice(easyN, rest.length - hardN);
+
+  return [...easyBand, ...mediumBand, ...diBlock, ...hardBand];
+}
 
 export interface AllocateExamQuestionsParams {
   supabase: SupabaseClient | null;
@@ -121,11 +208,27 @@ export async function allocateExamQuestions({
     return { questions: [], recycledCount: 0, bankAvailable: false };
   }
 
-  const { data: poolRows, error: poolError } = await supabase
+  const extendedResult = await supabase
     .from("questions")
-    .select("id, section, topic, subtopic, difficulty, body, options, correct_index, explanation, created_at")
+    .select(EXTENDED_COLUMNS)
     .eq("section", section)
     .limit(POOL_SCAN_LIMIT);
+  let poolRows = extendedResult.data as QuestionRow[] | null;
+  let poolError = extendedResult.error;
+
+  if (poolError?.code === UNDEFINED_COLUMN) {
+    // The group_id/group_order/diagram_data migration hasn't run yet on
+    // this database — fall back to the columns that definitely exist so
+    // allocation (and therefore every exam) still works. Data-interpretation
+    // grouping just won't be available until the migration runs.
+    const baseResult = await supabase
+      .from("questions")
+      .select(BASE_COLUMNS)
+      .eq("section", section)
+      .limit(POOL_SCAN_LIMIT);
+    poolRows = baseResult.data as QuestionRow[] | null;
+    poolError = baseResult.error;
+  }
 
   if (poolError || !poolRows || poolRows.length === 0) {
     return { questions: [], recycledCount: 0, bankAvailable: false };
@@ -153,19 +256,24 @@ export async function allocateExamQuestions({
 
   const unsolved = shuffle(pool.filter((q) => !solvedAt.has(q.id)));
 
+  let selected: Question[];
+  let recycledCount: number;
   if (unsolved.length >= count) {
-    return { questions: unsolved.slice(0, count), recycledCount: 0, bankAvailable: true };
+    selected = unsolved.slice(0, count);
+    recycledCount = 0;
+  } else {
+    const needed = count - unsolved.length;
+    const solvedPool = pool
+      .filter((q) => solvedAt.has(q.id))
+      .sort((a, b) => (solvedAt.get(a.id) ?? 0) - (solvedAt.get(b.id) ?? 0));
+    const recycled = solvedPool.slice(0, needed);
+    selected = [...unsolved, ...recycled];
+    recycledCount = recycled.length;
   }
 
-  const needed = count - unsolved.length;
-  const solvedPool = pool
-    .filter((q) => solvedAt.has(q.id))
-    .sort((a, b) => (solvedAt.get(a.id) ?? 0) - (solvedAt.get(b.id) ?? 0));
-  const recycled = solvedPool.slice(0, needed);
-
   return {
-    questions: shuffle([...unsolved, ...recycled]),
-    recycledCount: recycled.length,
+    questions: applyDifficultyCurve(selected),
+    recycledCount,
     bankAvailable: true,
   };
 }

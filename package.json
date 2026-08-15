@@ -10,7 +10,8 @@
     "seed:questions": "tsx --env-file=.env.local scripts/seed-question-bank.ts",
     "seed:questions:hardcoded": "tsx --env-file=.env.local scripts/seed-hardcoded-questions.ts",
     "seed:questions:quant": "tsx --env-file=.env.local scripts/seed-quant-20.ts",
-    "seed:questions:quant-formats": "tsx --env-file=.env.local scripts/seed-quant-advanced-formats.ts"
+    "seed:questions:quant-formats": "tsx --env-file=.env.local scripts/seed-quant-advanced-formats.ts",
+    "seed:questions:quant-di": "tsx --env-file=.env.local scripts/seed-quant-data-interpretation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
