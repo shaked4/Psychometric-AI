@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { NavBar } from "@/components/nav-bar";
 import { EssayPromptPicker } from "@/components/essay/essay-prompt-picker";
 import { EssayEditor, countEssayWords } from "@/components/essay/essay-editor";
 import { EssayTimer } from "@/components/essay/essay-timer";
-import { EssayResults } from "@/components/essay/essay-results";
 import { EssayHistoryList } from "@/components/essay/essay-history-list";
 import { Button } from "@/components/ui/button";
 import { getEssayPrompt } from "@/lib/essay-prompts";
@@ -24,21 +24,20 @@ import { pullEssayAttempts, pushEssayAttempt } from "@/lib/essay-cloud";
 const ESSAY_DURATION_SECONDS = 30 * 60;
 const DRAFT_SAVE_DEBOUNCE_MS = 600;
 
-type Phase = "browse" | "writing" | "evaluating" | "results";
-
-interface ResultView {
-  evaluation: EssayEvaluation;
-  wordCount: number;
-  offline: boolean;
-}
+// "results" is deliberately not a phase here — a finished essay always
+// lives at /essay/[attemptId] (see that route) so viewing one is a real,
+// refreshable URL instead of in-memory state that a page reload would
+// silently drop back to "browse". This page only ever transitions into
+// that route via router.replace()/push() once an attempt exists.
+type Phase = "browse" | "writing" | "evaluating";
 
 export default function EssayPage() {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("browse");
   const [promptId, setPromptId] = useState<string | null>(null);
   const [essayText, setEssayText] = useState("");
   const [timeExpired, setTimeExpired] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [resultView, setResultView] = useState<ResultView | null>(null);
 
   const startedAtRef = useRef<number>(0);
   const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,24 +116,13 @@ export default function EssayPage() {
       pushEssayAttempt(attempt);
       clearEssayDraft(promptId);
 
-      setResultView({ evaluation, wordCount, offline });
-      setPhase("results");
+      // replace (not push): the "evaluating" transient shouldn't be a back-
+      // button stop — from the results page, back should land on /essay.
+      router.replace(`/essay/${attempt.id}`);
     } catch {
       setSubmitError("אירעה שגיאה בהערכת החיבור. נסו שוב.");
       setPhase("writing");
     }
-  }
-
-  function handleViewPastEssay(attempt: EssayAttempt) {
-    setResultView({ evaluation: attempt, wordCount: attempt.wordCount, offline: attempt.offline });
-    setPhase("results");
-  }
-
-  function handleDoneWithResults() {
-    setResultView(null);
-    setPromptId(null);
-    setEssayText("");
-    setPhase("browse");
   }
 
   if (phase === "writing" && prompt) {
@@ -199,22 +187,6 @@ export default function EssayPage() {
     );
   }
 
-  if (phase === "results" && resultView) {
-    return (
-      <>
-        <NavBar />
-        <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
-          <EssayResults
-            evaluation={resultView.evaluation}
-            wordCount={resultView.wordCount}
-            offline={resultView.offline}
-            onDone={handleDoneWithResults}
-          />
-        </main>
-      </>
-    );
-  }
-
   return (
     <>
       <NavBar />
@@ -230,7 +202,7 @@ export default function EssayPage() {
         {essayAttempts.length > 0 && (
           <div className="flex flex-col gap-3">
             <h2 className="text-lg font-semibold">חיבורים קודמים</h2>
-            <EssayHistoryList attempts={essayAttempts} onSelect={handleViewPastEssay} />
+            <EssayHistoryList attempts={essayAttempts} onSelect={(attempt) => router.push(`/essay/${attempt.id}`)} />
           </div>
         )}
 

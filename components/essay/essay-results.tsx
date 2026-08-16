@@ -25,18 +25,31 @@ function ScoreBadge({ label, score }: { label: string; score: number }) {
 }
 
 interface EssayResultsProps {
+  promptTitle: string;
+  essayText: string;
   evaluation: EssayEvaluation;
   wordCount: number;
   offline: boolean;
   onDone: () => void;
 }
 
-export function EssayResults({ evaluation, wordCount, offline, onDone }: EssayResultsProps) {
+export function EssayResults({ promptTitle, essayText, evaluation, wordCount, offline, onDone }: EssayResultsProps) {
   const { contentScore, languageScore, estimatedPsychometricScore, strengths, improvements, reminiscentExamples } =
     evaluation;
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground">{promptTitle}</h2>
+        {/* Read-only, scrollable — lets the student cross-reference their
+            own writing against the feedback/scores below without the
+            editable-textarea affordance (cursor, focus ring) of the
+            writing phase, which no longer applies once submitted. */}
+        <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-card p-5 text-sm leading-relaxed text-card-foreground shadow-sm">
+          {essayText}
+        </div>
+      </div>
+
       {offline && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
           <WifiOff className="size-4 shrink-0" />
