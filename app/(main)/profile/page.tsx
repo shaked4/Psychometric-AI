@@ -181,8 +181,8 @@ function ProfileSignedInGate({
           <span className="text-2xl font-bold tabular-nums">{readiness.index}</span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          מבוסס על דיוק, קצב פתרון, רצף תרגול ושליטה בחזרה מרווחת — מחושב מההיסטוריה המלאה שלכם, בין אם
-          נצברה במכשיר הזה או סונכרנה ממכשיר אחר.
+          מבוסס על דיוק, קצב פתרון ורציפות תרגול — מחושב מההיסטוריה המלאה שלכם, בין אם נצברה במכשיר
+          הזה או סונכרנה ממכשיר אחר.
         </p>
       </div>
 
