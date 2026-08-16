@@ -225,10 +225,13 @@ export interface AllocateExamQuestionsResult {
 
 /**
  * Draws up to `count` questions for `section`, preferring ones the student
- * has never solved. Falls back to recycling their *oldest* solved
- * questions only once the unsolved pool for this section is exhausted —
- * per Phase 18's requirement 3, this is the deliberate last resort, not
- * the default.
+ * has never solved. Once the unsolved pool for this section is exhausted,
+ * falls back to recycling solved ones in two further tiers, oldest-first
+ * within each: first questions they've never gotten *right* (still
+ * genuinely unmastered — re-serving these is useful, not just filler),
+ * and only once that's exhausted too, questions they've already answered
+ * correctly at least once (a full pool reset). Per Phase 18's requirement
+ * 3, recycling at all is the deliberate last resort, not the default.
  */
 export async function allocateExamQuestions({
   supabase,
@@ -270,20 +273,31 @@ export async function allocateExamQuestions({
   const pool = (poolRows as QuestionRow[]).map(rowToQuestion);
 
   // question_id -> earliest attempt timestamp for this user, so recycling
-  // (below) can prefer whatever was solved longest ago.
+  // (below) can prefer whatever was solved longest ago. A second map tracks
+  // whether the student has *ever* gotten each question right, so recycling
+  // can prefer still-unmastered questions over ones already answered
+  // correctly at least once.
   const solvedAt = new Map<string, number>();
+  const everCorrect = new Map<string, boolean>();
   for (const id of clientKnownSolvedIds) solvedAt.set(id, 0); // unknown timing — treat as oldest
+  // clientKnownSolvedIds carries no correctness signal (it's just the
+  // caller's local id list) — left unset in everCorrect, which the recycle
+  // split below treats as "not known to be correct", i.e. the same tier as
+  // a genuine wrong answer. Only affects guests/not-yet-synced ids; the
+  // clerkUserId query below is authoritative wherever it applies.
 
   if (clerkUserId) {
     const { data: attemptRows } = await supabase
       .from("attempts")
-      .select("question_id, created_at")
+      .select("question_id, created_at, is_correct")
       .eq("clerk_user_id", clerkUserId);
 
-    for (const row of (attemptRows as { question_id: string; created_at: string }[] | null) ?? []) {
+    for (const row of (attemptRows as { question_id: string; created_at: string; is_correct: boolean }[] | null) ??
+      []) {
       const ts = new Date(row.created_at).getTime();
       const existing = solvedAt.get(row.question_id);
       if (existing === undefined || ts < existing) solvedAt.set(row.question_id, ts);
+      if (row.is_correct) everCorrect.set(row.question_id, true);
     }
   }
 
@@ -301,10 +315,14 @@ export async function allocateExamQuestions({
     recycledFromOthers = 0;
   } else {
     const needed = remainingCount - unsolvedRest.length;
-    const solvedRestPool = pool
-      .filter((q) => solvedAt.has(q.id) && !reservedIds.has(q.id))
-      .sort((a, b) => (solvedAt.get(a.id) ?? 0) - (solvedAt.get(b.id) ?? 0))
-      .slice(0, needed);
+    const solvedRest = pool.filter((q) => solvedAt.has(q.id) && !reservedIds.has(q.id));
+    const byOldest = (a: Question, b: Question) => (solvedAt.get(a.id) ?? 0) - (solvedAt.get(b.id) ?? 0);
+    // Tier 1 of the recycle fallback: still-unmastered questions (never
+    // answered correctly). Tier 2, only reached once tier 1 also runs out:
+    // questions already gotten right at least once — a full pool reset.
+    const neverCorrectPool = solvedRest.filter((q) => everCorrect.get(q.id) !== true).sort(byOldest);
+    const alreadyCorrectPool = solvedRest.filter((q) => everCorrect.get(q.id) === true).sort(byOldest);
+    const solvedRestPool = [...neverCorrectPool, ...alreadyCorrectPool].slice(0, needed);
     others = [...unsolvedRest, ...solvedRestPool];
     recycledFromOthers = solvedRestPool.length;
   }

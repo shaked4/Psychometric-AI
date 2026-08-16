@@ -19,7 +19,7 @@ export default function Home() {
           וחולשה, ובונה עבורכם תוכנית תרגול אישית — כמותי, מילולי ואנגלית.
         </p>
 
-        <Link href="/practice/custom" className={buttonVariants({ size: "lg" })}>
+        <Link href="/practice/quick" className={buttonVariants({ size: "lg" })}>
           התחילו תרגול יומי קצר
         </Link>
         <p className="text-sm text-muted-foreground">
