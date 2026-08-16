@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getAllTopics } from "@/lib/stats";
+import { PRACTICE_TOPIC_TREE } from "@/lib/topics";
 import type { Section } from "@/types";
 
 const SECTION_LABELS: Record<Section, string> = {
@@ -22,10 +22,12 @@ interface StudySidebarProps {
  * section's topics expanded so students can jump between units without
  * leaving the practice flow. Hidden below `lg` to keep small screens
  * distraction-free; PracticeSession only widens its layout when this is
- * actually rendered (see the `sidebar` prop there). */
+ * actually rendered (see the `sidebar` prop there).
+ *
+ * Reads the fixed canonical taxonomy (lib/topics.ts), not whatever topic
+ * strings happen to exist in the seeded question bank — see that file's
+ * doc-comment for why. */
 export function StudySidebar({ currentSection, currentTopic }: StudySidebarProps) {
-  const topics = getAllTopics();
-
   return (
     <aside className="hidden shrink-0 lg:block lg:w-60">
       <div className="sticky top-24 flex flex-col gap-4 rounded-xl border border-sidebar-border bg-sidebar p-4">
@@ -34,9 +36,7 @@ export function StudySidebar({ currentSection, currentTopic }: StudySidebarProps
         <div className="flex flex-col gap-3">
           {SECTIONS.map((section) => {
             const isCurrentSection = section === currentSection;
-            const sectionTopics = [
-              ...new Set(topics.filter((t) => t.section === section).map((t) => t.topic)),
-            ];
+            const sectionTopics = PRACTICE_TOPIC_TREE[section];
 
             return (
               <div key={section} className="flex flex-col gap-1">

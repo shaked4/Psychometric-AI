@@ -12,7 +12,14 @@
     "seed:questions:quant": "tsx --env-file=.env.local scripts/seed-quant-20.ts",
     "seed:questions:quant-formats": "tsx --env-file=.env.local scripts/seed-quant-advanced-formats.ts",
     "seed:questions:quant-di": "tsx --env-file=.env.local scripts/seed-quant-data-interpretation.ts",
-    "seed:questions:verbal": "tsx --env-file=.env.local scripts/seed-verbal-questions.ts"
+    "seed:questions:verbal": "tsx --env-file=.env.local scripts/seed-verbal-questions.ts",
+    "seed:questions:quant-di-2": "tsx --env-file=.env.local scripts/seed-quant-data-interpretation-2.ts",
+    "seed:questions:quant-expansion": "tsx --env-file=.env.local scripts/seed-quant-algebra-geometry-word-problems.ts",
+    "seed:questions:verbal-analogies": "tsx --env-file=.env.local scripts/seed-verbal-analogies-sentences-logic.ts",
+    "seed:questions:verbal-reading": "tsx --env-file=.env.local scripts/seed-verbal-reading-comprehension.ts",
+    "seed:questions:english-sentence": "tsx --env-file=.env.local scripts/seed-english-sentence-restatement.ts",
+    "seed:questions:english-reading": "tsx --env-file=.env.local scripts/seed-english-reading-comprehension.ts",
+    "migrate:consolidate-topics": "tsx --env-file=.env.local scripts/migrate-consolidate-topics.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",

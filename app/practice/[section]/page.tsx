@@ -33,10 +33,13 @@ function isValidSection(value: string): value is Section {
   return (VALID_SECTIONS as string[]).includes(value);
 }
 
-/** A topical practice batch, not a full exam — short enough to feel like
- * "practice one topic for a bit", long enough that the same visit doesn't
- * run dry after two questions on a thin topic. */
-const PRACTICE_QUESTION_COUNT = 8;
+/** Practice mode draws as much of the section/topic's seeded pool as
+ * actually exists, not a fixed exam-length slice — this is the cap on that
+ * draw, not a target the engine tries to fill. allocateExamQuestions()
+ * (lib/exam-fetcher.ts) already returns fewer than this whenever the pool
+ * genuinely has fewer, which is exactly "all available questions", not a
+ * shortfall to be padded. */
+const PRACTICE_QUESTION_LIMIT = 50;
 
 export default function PracticeSessionPage() {
   const params = useParams<{ section: string }>();
@@ -59,11 +62,14 @@ export default function PracticeSessionPage() {
       try {
         const localSolvedIds = [...new Set(getAttempts().map((a) => a.questionId))];
 
-        // Prefer the pre-seeded, deduplicated question bank
-        // (lib/exam-fetcher.ts) — same allocation engine and per-user
-        // solved-history exclusion exam mode uses, scoped to this topic —
-        // falls back to live AI generation below for any shortfall, same
-        // pattern as app/exam/[section]/page.tsx.
+        // Draw everything the pre-seeded question bank has for this
+        // section/topic (lib/exam-fetcher.ts) — same allocation engine and
+        // per-user solved-history exclusion exam mode uses (unsolved
+        // first, then previously-wrong, then a full reset), just asked for
+        // up to PRACTICE_QUESTION_LIMIT instead of a fixed exam-length
+        // count. Unlike exam mode, a partial result here is NOT a
+        // shortfall to top up — it's simply "all available questions",
+        // which is exactly what practice mode should show.
         let loaded: Question[] = [];
         try {
           const allocateRes = await fetch("/api/exam/allocate", {
@@ -71,7 +77,7 @@ export default function PracticeSessionPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               section,
-              count: PRACTICE_QUESTION_COUNT,
+              count: PRACTICE_QUESTION_LIMIT,
               topic: topicParam ?? undefined,
               excludeQuestionIds: localSolvedIds,
             }),
@@ -82,17 +88,17 @@ export default function PracticeSessionPage() {
           }
         } catch {
           // Bank allocation is a pure enhancement — any failure here just
-          // means the full amount gets topped up via generation below.
+          // falls through to live generation below, same as an empty bank.
         }
         if (cancelled) return;
 
-        // Real bank content already in hand — don't dilute it with the
-        // live-generation route's own offline fallback, which just cycles
-        // a handful of static mock questions. An empty bank still gets
-        // that fallback below, same as exam mode.
-        const hadBankQuestions = loaded.length > 0;
-        const shortfall = PRACTICE_QUESTION_COUNT - loaded.length;
-        if (shortfall > 0) {
+        // The bank has literally nothing for this section/topic (not
+        // seeded, or Supabase not configured) — this is the one case where
+        // falling back to live AI generation makes sense, since there's
+        // nothing real to dilute. A bank that returned *some* real
+        // questions is left exactly as-is, never padded with generated
+        // filler — see the comment above.
+        if (loaded.length === 0) {
           try {
             const batch = await fetch("/api/generate-questions", {
               method: "POST",
@@ -101,16 +107,14 @@ export default function PracticeSessionPage() {
                 section,
                 topic: topicParam ?? undefined,
                 difficulty: "medium",
-                count: shortfall,
+                count: PRACTICE_QUESTION_LIMIT,
               }),
             }).then((r) => r.json());
             if (cancelled) return;
-            if (!(hadBankQuestions && batch.offline)) {
-              loaded = [...loaded, ...(batch.questions ?? [])];
-            }
+            loaded = batch.questions ?? [];
           } catch {
-            // Live generation is also just a top-up — whatever the bank
-            // already returned still stands.
+            // Live generation failing too just means an empty result,
+            // handled by the empty-state screen below.
           }
         }
         if (cancelled) return;
