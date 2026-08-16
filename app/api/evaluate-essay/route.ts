@@ -201,27 +201,37 @@ function buildTemplateEvaluation(essayText: string, wordCount: number, metrics: 
 
   const inTargetLength = wordCount >= 300 && wordCount <= 500;
 
-  // Capped at 5, not 6: length, paragraph count, and a keyword-matched
-  // counterargument mention are all this heuristic can actually measure —
-  // none of them verify whether the argument itself is logically sound,
-  // which is most of what the content axis is supposed to grade. Calibrated
-  // against a real external example: the previous version (which could
-  // reach 6 on length/paragraph-count alone) scored a genuine 4.25/6-content
-  // essay as a perfect 6; this version scores it a 5, honestly reflecting
-  // that a live Claude evaluation (see generateOnce below), not this
-  // fallback, is what actually judges argument quality.
+  // Capped at 4, not 6: length, paragraph count, and a keyword-matched
+  // counterargument mention are all this heuristic can actually measure, and
+  // a second real-world calibration check proved even that combination is
+  // an unreliable predictor of content quality — one essay that checked
+  // every one of these boxes was independently graded 2.8/6 content, 3.09/6
+  // language (a structurally similar essay from the first check graded
+  // 4.25/6 content). Same structural profile, ~1.5-point-different content
+  // score: no amount of tuning keyword/length checks can resolve that gap,
+  // because it comes down to whether the argument itself is logically sound
+  // (a weak analogy, a shaky factual claim) — judging that requires reading
+  // comprehension, which only a live Claude evaluation (see generateOnce
+  // below) actually has. This cap exists to stop the fallback from
+  // confidently handing out near-perfect scores it has no real basis for,
+  // not to chase exact parity with either reference example.
   const contentScore = Math.max(
     1,
     Math.min(
-      5,
+      4,
       2 + (inTargetLength ? 1 : 0) + (paragraphs.length >= 3 ? 1 : 0) + (hasCounterargument ? 1 : 0)
     )
   );
 
+  // Same reasoning as contentScore's cap above: the second calibration essay
+  // hit every one of these surface signals (transition-word count, sentence
+  // length, sentence count) yet was graded 3.09/6 for language — its actual
+  // weaknesses were imprecise word choices and a couple of malformed words,
+  // invisible to length/connector-count checks.
   const languageScore = Math.max(
     1,
     Math.min(
-      6,
+      4,
       2 +
         (transitionCount >= 2 ? 1 : 0) +
         (avgSentenceLen >= 8 && avgSentenceLen <= 25 ? 1 : 0) +

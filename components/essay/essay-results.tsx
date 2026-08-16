@@ -54,7 +54,8 @@ export function EssayResults({ promptTitle, essayText, evaluation, wordCount, of
         <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
           <WifiOff className="size-4 shrink-0" />
           לא זיהינו מפתח Claude API פעיל, כך שההערכה שלהלן מבוססת על ניתוח היוריסטי (אורך, מבנה פסקאות, מילות
-          קישור) במקום הערכת AI מלאה.
+          קישור) במקום הערכת AI מלאה. ציוני התוכן והלשון הם קירוב גס בלבד ועשויים להיות שונים משמעותית
+          מהערכה מלאה — הם לא בודקים את איכות הטיעון עצמו (הגיון, דיוק בדוגמאות, דיוק לשוני).
         </div>
       )}
 
