@@ -1,6 +1,5 @@
 import type { Attempt } from "@/types";
 import { computeOverallStats } from "@/lib/stats";
-import { computeReviewQueue } from "@/lib/spaced-repetition";
 
 /** Matches the exam simulation's own pacing (20 questions / 20 minutes —
  * see EXAM_DURATION_SECONDS / EXAM_QUESTION_COUNT in app/exam/[section]),
@@ -8,36 +7,31 @@ import { computeReviewQueue } from "@/lib/spaced-repetition";
 const TARGET_SECONDS_PER_QUESTION = 60;
 
 export interface ReadinessBreakdown {
-  /** 0-100 synthesis of the four components below. */
+  /** 0-100 synthesis of the three components below. */
   index: number;
   accuracyScore: number;
   paceScore: number;
   streakScore: number;
-  reviewMasteryScore: number;
 }
 
 const WEIGHTS = {
-  accuracy: 0.4,
-  pace: 0.2,
-  streak: 0.15,
-  reviewMastery: 0.25,
+  accuracy: 0.5,
+  pace: 0.3,
+  streak: 0.2,
 };
 
 /**
- * A single 0-100 "exam readiness" number synthesizing four stats-layer
+ * A single 0-100 "exam readiness" number synthesizing three stats-layer
  * signals — never an LLM guess, always a deterministic function of the
  * attempt log (same principle as lib/stats.ts):
- * - accuracy (40%): overall correct-answer rate.
- * - pace (20%): average time per question against the real exam's pacing.
- * - streak (15%): consecutive practice days, capped at a 7-day streak.
- * - review mastery (25%): of every question ever gotten wrong or flagged,
- *   the fraction since graduated out of the spaced-repetition queue (see
- *   lib/spaced-repetition.ts) — rewards actually fixing past mistakes, not
- *   just accumulating new correct answers elsewhere.
+ * - accuracy (50%): overall correct-answer rate.
+ * - pace (30%): average time per question against the real exam's pacing.
+ * - streak / practice consistency (20%): consecutive practice days, capped
+ *   at a 7-day streak.
  */
 export function computeReadinessIndex(attempts: Attempt[]): ReadinessBreakdown {
   if (attempts.length === 0) {
-    return { index: 0, accuracyScore: 0, paceScore: 0, streakScore: 0, reviewMasteryScore: 0 };
+    return { index: 0, accuracyScore: 0, paceScore: 0, streakScore: 0 };
   }
 
   const overall = computeOverallStats(attempts);
@@ -50,17 +44,8 @@ export function computeReadinessIndex(attempts: Attempt[]): ReadinessBreakdown {
 
   const streakScore = Math.min(100, Math.round((overall.streakDays / 7) * 100));
 
-  const { masteredQuestionIds, everEnteredQuestionIds } = computeReviewQueue(attempts);
-  const reviewMasteryScore =
-    everEnteredQuestionIds.length === 0
-      ? 100
-      : Math.round((masteredQuestionIds.length / everEnteredQuestionIds.length) * 100);
-
   const index = Math.round(
-    overall.accuracyPct * WEIGHTS.accuracy +
-      paceScore * WEIGHTS.pace +
-      streakScore * WEIGHTS.streak +
-      reviewMasteryScore * WEIGHTS.reviewMastery
+    overall.accuracyPct * WEIGHTS.accuracy + paceScore * WEIGHTS.pace + streakScore * WEIGHTS.streak
   );
 
   return {
@@ -68,6 +53,5 @@ export function computeReadinessIndex(attempts: Attempt[]): ReadinessBreakdown {
     accuracyScore: overall.accuracyPct,
     paceScore,
     streakScore,
-    reviewMasteryScore,
   };
 }

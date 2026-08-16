@@ -85,11 +85,12 @@ Future (post-MVP): Simulations, StudyPlans, TutorChatHistory, RecommendationLog.
   in `lib/exam-result.ts` (sessionStorage, full per-question detail, overwritten every exam) —
   needed because the dashboard's score-progression chart needs every past exam, not just the
   last one.
-- **Readiness Index (`lib/readiness.ts`)**: a single deterministic 0-100 number — accuracy
-  (40%), pace vs. the exam's own 60s/question target (20%), practice-day streak capped at 7
-  days (15%), and spaced-repetition "review mastery" — the fraction of ever-wrong/flagged
-  questions since graduated out of the queue (25%). Never an LLM guess, same stats-layer
-  principle as everything else here.
+- **Readiness Index (`lib/readiness.ts`)**: a single deterministic 0-100 number over three
+  core signals — accuracy (50%), pace vs. the exam's own 60s/question target (30%), and
+  practice-day streak capped at 7 days (20%). Previously included a fourth "review mastery"
+  component (spaced-repetition graduation rate); removed for simplicity — the three remaining
+  weights were rebalanced to sum to 100%, not left as a residual 75%. Never an LLM guess, same
+  stats-layer principle as everything else here.
 
 ## Deep post-mortem analysis (`/post-mortem`, Phase 12)
 

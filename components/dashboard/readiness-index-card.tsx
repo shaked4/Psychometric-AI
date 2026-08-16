@@ -6,7 +6,6 @@ const COMPONENTS: { key: keyof Omit<ReadinessBreakdown, "index">; label: string 
   { key: "accuracyScore", label: "דיוק" },
   { key: "paceScore", label: "קצב" },
   { key: "streakScore", label: "רציפות תרגול" },
-  { key: "reviewMasteryScore", label: "שליטה בחזרות" },
 ];
 
 function levelColor(index: number) {
