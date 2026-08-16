@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { getAttempts } from "@/lib/storage";
 import { cacheQuestions } from "@/lib/question-cache";
+import { NavBar } from "@/components/nav-bar";
 import { PracticeSession } from "@/components/practice/practice-session";
 import { StudySidebar } from "@/components/practice/study-sidebar";
 import { buttonVariants } from "@/components/ui/button";
@@ -153,16 +154,28 @@ export default function PracticeSessionPage() {
   }
 
   if (questions.length === 0) {
+    // Thin/empty pool for this exact section+topic — a real possibility for
+    // a mistyped or stale ?topic= value even though every canonical topic
+    // (lib/topics.ts) is well-seeded. Rather than stranding the student on a
+    // dead end, this renders the same StudySidebar as the ready state so
+    // switching to any other topic is one click away, not a trip back to
+    // the homepage first.
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-lg font-medium">אין כרגע שאלות זמינות לתרגול הזה</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          נסו שוב בעוד כמה רגעים, או בחרו נושא אחר מתוכן הלימוד.
-        </p>
-        <Link href="/" className={buttonVariants({ variant: "default" })}>
-          חזרה לדף הבית
-        </Link>
-      </div>
+      <>
+        <NavBar />
+        <div className="mx-auto flex w-full max-w-5xl flex-1 gap-6 px-6 py-8">
+          <StudySidebar currentSection={section} currentTopic={topicParam ?? undefined} />
+          <main className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
+            <p className="text-lg font-medium">אין כרגע שאלות זמינות לתרגול הזה</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              בחרו נושא אחר מתוכן הלימוד בצד, או נסו שוב בעוד כמה רגעים.
+            </p>
+            <Link href="/" className={buttonVariants({ variant: "default" })}>
+              חזרה לדף הבית
+            </Link>
+          </main>
+        </div>
+      </>
     );
   }
 
