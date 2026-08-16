@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { NavBar } from "@/components/nav-bar";
 import { EssayPromptPicker } from "@/components/essay/essay-prompt-picker";
 import { EssayEditor, countEssayWords } from "@/components/essay/essay-editor";
 import { EssayTimer } from "@/components/essay/essay-timer";
 import { EssayEvaluationLoader } from "@/components/essay/essay-evaluation-loader";
 import { EssayHistoryList } from "@/components/essay/essay-history-list";
+import { EssayScoreTrendChart } from "@/components/essay/essay-score-trend-chart";
 import { Button } from "@/components/ui/button";
 import { getEssayPrompt } from "@/lib/essay-prompts";
 import {
@@ -31,10 +33,12 @@ const DRAFT_SAVE_DEBOUNCE_MS = 600;
 // silently drop back to "browse". This page only ever transitions into
 // that route via router.replace()/push() once an attempt exists.
 type Phase = "browse" | "writing" | "evaluating";
+type BrowseTab = "write" | "history";
 
 export default function EssayPage() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("browse");
+  const [browseTab, setBrowseTab] = useState<BrowseTab>("write");
   const [promptId, setPromptId] = useState<string | null>(null);
   const [essayText, setEssayText] = useState("");
   const [timeExpired, setTimeExpired] = useState(false);
@@ -186,7 +190,7 @@ export default function EssayPage() {
   return (
     <>
       <NavBar />
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-6 py-10">
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">מטלת כתיבה מילולית</h1>
           <p className="mt-1 text-muted-foreground">
@@ -195,17 +199,62 @@ export default function EssayPage() {
           </p>
         </div>
 
-        {essayAttempts.length > 0 && (
+        <div className="flex w-fit gap-1 rounded-lg border border-border bg-card p-1">
+          {(
+            [
+              { key: "write", label: "כתיבה חדשה" },
+              { key: "history", label: "היסטוריה והתקדמות" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setBrowseTab(tab.key)}
+              className={cn(
+                "rounded-md px-4 py-1.5 text-sm font-medium transition",
+                browseTab === tab.key
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              )}
+            >
+              {tab.label}
+              {tab.key === "history" && essayAttempts.length > 0 && (
+                <span className="ms-1.5 tabular-nums text-muted-foreground">({essayAttempts.length})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {browseTab === "write" && (
           <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">חיבורים קודמים</h2>
-            <EssayHistoryList attempts={essayAttempts} onSelect={(attempt) => router.push(`/essay/${attempt.id}`)} />
+            <h2 className="text-lg font-semibold">בחרו נושא</h2>
+            <EssayPromptPicker onSelect={handleSelectPrompt} />
           </div>
         )}
 
-        <div className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">בחרו נושא</h2>
-          <EssayPromptPicker onSelect={handleSelectPrompt} />
-        </div>
+        {browseTab === "history" &&
+          (essayAttempts.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+              <p className="text-muted-foreground">עדיין לא כתבתם חיבורים.</p>
+              <Button variant="outline" onClick={() => setBrowseTab("write")}>
+                לבחירת נושא ראשון
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-8">
+              <div>
+                <h2 className="mb-3 text-lg font-semibold">מגמת ציונים</h2>
+                <EssayScoreTrendChart attempts={essayAttempts} />
+              </div>
+              <div>
+                <h2 className="mb-3 text-lg font-semibold">חיבורים קודמים</h2>
+                <EssayHistoryList
+                  attempts={essayAttempts}
+                  onSelect={(attempt) => router.push(`/essay/${attempt.id}`)}
+                />
+              </div>
+            </div>
+          ))}
       </main>
     </>
   );
