@@ -5,7 +5,15 @@ import { z } from "zod";
 import { scaleScore } from "@/lib/exam-history";
 import type { EssayEvaluation } from "@/lib/essay-storage";
 
-const MODEL = "claude-sonnet-5";
+// Haiku, not Sonnet: essay evaluation was taking 20-40s end-to-end on
+// Sonnet, most of it model latency rather than the structured-output size.
+// Haiku 4.5 is the current fast-tier model (the "claude-3-5-haiku"/
+// "claude-3-haiku" snapshot ids are older, deprecated generations that
+// predate this app's model family — everywhere else in this codebase
+// already uses the current "-5" naming, e.g. generate-questions' own
+// "claude-sonnet-5"). Structured-output grading against a fixed rubric is
+// well within a fast model's ability; this isn't open-ended reasoning.
+const MODEL = "claude-haiku-4-5-20251001";
 
 // Structured outputs don't support numeric min/max constraints, so the 1-6
 // NITE scale is expressed as a literal union and re-validated by hand where
@@ -373,6 +381,15 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Diagnostic only — never logs the key itself, just whether process.env
+  // actually has it by the time this request handler runs. If this ever
+  // prints "present: false" while .env.local clearly has a value, that's a
+  // real env-loading problem (wrong file, server not actually restarted,
+  // etc.); if it prints "present: true" but the route still falls back
+  // offline, the cause is downstream (see the catch block below) — a bad
+  // key, no credit, a refusal, or a network error, not a missing key.
+  console.log(`[evaluate-essay] ANTHROPIC_API_KEY present: ${Boolean(apiKey)}${apiKey ? `, length: ${apiKey.length}` : ""}`);
+
   if (!apiKey) {
     return NextResponse.json({
       evaluation: buildTemplateEvaluation(essayText, wordCount, metrics),
@@ -393,6 +410,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
+      console.error(
+        `[evaluate-essay] Model returned no usable output — stop_reason: ${response.stop_reason}, parsed_output present: ${Boolean(response.parsed_output)}. Falling back to offline heuristic.`
+      );
       return NextResponse.json({
         evaluation: buildTemplateEvaluation(essayText, wordCount, metrics),
         wordCount,
@@ -412,9 +432,22 @@ export async function POST(req: NextRequest) {
       reminiscentExamples,
     };
 
+    console.log("[evaluate-essay] Live Claude evaluation succeeded.");
     return NextResponse.json({ evaluation, wordCount });
   } catch (error) {
-    console.error("Evaluate essay error:", error);
+    // Anthropic SDK errors carry the useful detail on .status/.error rather
+    // than the message alone (e.g. a 400 "credit balance too low" or a 401
+    // bad-key error both just say "Error" at the top level) — surfacing
+    // those explicitly is what actually answers "why did this fall back to
+    // offline," not just that it did.
+    const status = (error as { status?: number })?.status;
+    const apiMessage = (error as { error?: { error?: { message?: string } } })?.error?.error?.message;
+    console.error(
+      `[evaluate-essay] Live Claude call failed — status: ${status ?? "n/a"}, message: ${
+        apiMessage ?? (error instanceof Error ? error.message : String(error))
+      }. Falling back to offline heuristic.`,
+      error
+    );
     return NextResponse.json({
       evaluation: buildTemplateEvaluation(essayText, wordCount, metrics),
       wordCount,

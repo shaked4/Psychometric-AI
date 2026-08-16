@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { NavBar } from "@/components/nav-bar";
 import { EssayPromptPicker } from "@/components/essay/essay-prompt-picker";
 import { EssayEditor, countEssayWords } from "@/components/essay/essay-editor";
 import { EssayTimer } from "@/components/essay/essay-timer";
+import { EssayEvaluationLoader } from "@/components/essay/essay-evaluation-loader";
 import { EssayHistoryList } from "@/components/essay/essay-history-list";
 import { Button } from "@/components/ui/button";
 import { getEssayPrompt } from "@/lib/essay-prompts";
@@ -179,12 +180,7 @@ export default function EssayPage() {
   }
 
   if (phase === "evaluating") {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
-        <Loader2 className="size-6 animate-spin" />
-        <p>מעריכים את החיבור שלכם...</p>
-      </div>
-    );
+    return <EssayEvaluationLoader />;
   }
 
   return (
