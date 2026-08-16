@@ -112,18 +112,34 @@ function computeEssayMetrics(essayText: string): EssayMetrics {
   };
 }
 
+// Deliberately unequal (not 50/50): both axes are whole 1-6 integers
+// (structured outputs can't express decimals — see SCORE_1_TO_6 above), so
+// an even split means (contentScore-1)+(languageScore-1) only has 11
+// possible sums (0-10) — the estimate could only ever land on an exact
+// multiple of 10 (50, 60, ..., 150), no matter how nuanced the model's
+// judgment actually was. That's a hard "bucket cap" baked into the
+// arithmetic itself, not something prompt tuning can fix. Weighting content
+// 60/language 40 means a single-point change on either axis is worth a
+// different amount (11 vs 9 raw points before scaleScore's own round-to-5),
+// so far more of the 36 possible (contentScore, languageScore) combinations
+// land on distinct points along the scale — 19 of the 21 multiples of 5
+// between 50-150 are reachable this way, letting a genuinely improved essay
+// move from e.g. 130 to 135 or 140 instead of jumping straight to 150 (or
+// not moving at all).
+const CONTENT_WEIGHT = 0.6;
+const LANGUAGE_WEIGHT = 0.4;
+
 /**
  * The model is asked for contentScore/languageScore, never for the final
  * estimate — same stats-layer-vs-narrative-layer split as everywhere else
  * in this codebase (CLAUDE.md). Reuses the exam sections' own scaleScore()
- * linear approximation: both 1-6 axes are normalized to a 0-1 fraction and
- * averaged before feeding the same 50-150 curve, so an essay's estimate is
+ * curve (round-to-nearest-5, clamped 50-150) so an essay's estimate is
  * directly comparable to a section score. A flagged-invalid essay always
  * bottoms out at scaleScore's own floor (50), which this formula already
  * produces when both axes are 1 — no separate constant needed.
  */
 function estimatePsychometricScore(contentScore: number, languageScore: number): number {
-  const fraction = (contentScore - 1 + (languageScore - 1)) / 10;
+  const fraction = ((contentScore - 1) / 5) * CONTENT_WEIGHT + ((languageScore - 1) / 5) * LANGUAGE_WEIGHT;
   return scaleScore(fraction);
 }
 
@@ -303,21 +319,25 @@ function buildTemplateEvaluation(essayText: string, wordCount: number, metrics: 
 function buildSystemPrompt(): string {
   return `אתה בוחן מקצועי המעריך מטלות כתיבה (חיבור טיעון) בסגנון המבחן הפסיכומטרי הישראלי, לפי אמות המידה של המרכז הארצי לבחינות ולהערכה (המיצ"ב הפסיכומטרי).
 
-הערך את החיבור בשני צירים נפרדים, כל אחד בסולם שלם של 1 עד 6:
+הערך את החיבור בשני צירים נפרדים, כל אחד בסולם שלם של 1 עד 6. לכל ציר יש עוגני ציון קונקרטיים — קרא אותם בעיון והשתמש בהם כדי להבחין בין רמות סמוכות (למשל בין 4 ל-5, או בין 5 ל-6), ולא רק בין "טוב" ל"פחות טוב":
 
-מימד התוכן (contentScore):
-- בהירות התזה/העמדה שהוצגה
-- טיעון הגיוני ובנייה סדורה של הנימוקים
-- התייחסות אמיתית לטיעון הנגד (לא רק אזכור שטחי)
-- מבנה ברור: פתיחה, גוף הטיעון, התייחסות לעמדה הנגדית, סיכום
-- רלוונטיות מלאה לנושא שהוצג
+מימד התוכן (contentScore) — עוגני ציון:
+1: לא רלוונטי לנושא, חסר תזה, או טקסט חסר משמעות.
+2: תזה מעורפלת מאוד; טיעון חד-צדדי לחלוטין ללא כל התייחסות לעמדה הנגדית; נימוקים כלליים וללא ביסוס.
+3: תזה קיימת אך לא תמיד ברורה; התייחסות שטחית וחד-משפטית בלבד לטיעון הנגד (ללא התמודדות אמיתית איתו); נימוקים בסיסיים שאינם מפותחים לעומק.
+4: תזה ברורה ומבנה תקין (פתיחה, גוף, טיעון נגד, סיכום); התייחסות אמיתית לטיעון הנגד אך לא מעמיקה — מוזכר ונדחה בקצרה בלי לפרק אותו לגורמים; נימוקים סבירים אך חלקם נשארים כלליים או חסרי דוגמה קונקרטית.
+5: תזה חדה ומדויקת; התמודדות מעמיקה עם הטיעון הנגדי החזק ביותר האפשרי (לא הקל ביותר להפרכה) — מפרק אותו ומראה נקודת חולשה אמיתית בו; כל נימוק נתמך בדוגמה או בהנמקה קונקרטית וספציפית לנושא, לא כללית.
+6: כמו 5, ברמה יוצאת דופן: מבנה טיעוני מורכב ומדורג (למשל הכרה בגבולות העמדה שלו/ה עצמו/ה, או שילוב חלקי של טענת הנגד בתוך המסקנה); כל דוגמה מדויקת, ספציפית ובלתי ניתנת להחלפה בדוגמה כללית יותר; אין אף משפט "ממלא" שלא מקדם את הטיעון.
 
-מימד הלשון (languageScore):
-- רגיסטר לשוני גבוה ותקין
-- עושר לשוני ומגוון אוצר מילים
-- גיוון תחבירי (לא רק משפטים פשוטים וחוזרים)
-- שימוש מדויק במילות קישור ומעברים לוגיים
-- דיוק דקדוקי ותחבירי
+מימד הלשון (languageScore) — עוגני ציון:
+1: שגיאות חמורות המקשות על ההבנה הבסיסית של המשפטים.
+2: שפה בסיסית מאוד; משפטים קצרים וחוזרים באותו מבנה; כמעט ואין מילות קישור.
+3: שפה תקינה אך פשוטה; רוב המשפטים דומים באורכם ובמבנהם (למשל כולם משפטים פשוטים או כולם באותו אורך); אוצר מילים כללי ולא מדויק; מילות קישור בסיסיות בלבד ("אבל", "אז").
+4: שפה תקינה עם גיוון תחבירי מסוים — שילוב של משפטים ארוכים וקצרים, פשוטים ומורכבים; אוצר מילים סביר עם כמה בחירות מדויקות; מילות קישור מגוונות אך לא תמיד מדויקות להקשר.
+5: גיוון תחבירי ברור לאורך כל החיבור (מבנים תחביריים שונים בכוונה, לא במקרה); אוצר מילים מדויק ועשיר, כולל ביטויים ספציפיים לרישום גבוה; כל מילת קישור משקפת במדויק את היחס הלוגי בין הרעיונות (ניגוד לעומת סיבה לעומת מסקנה, לא סתם "אבל"/"אז" גנריים).
+6: כמו 5, ברמה יוצאת דופן: רגיסטר גבוה ועקבי מתחילת החיבור ועד סופו; גיוון תחבירי מתוחכם (למשל משפטי תנאי, מבני כפיפות מורכבים) המשרת את הטיעון ולא רק "מקשט" אותו; דיוק לשוני מוחלט ללא אף שגיאה או ניסוח מגושם.
+
+כלל מכריע נגד ציונים סטטיים: אל תיתן ציון 5 כברירת מחדל לחיבור "טוב באופן כללי". לפני שאתה קובע ציון של 5 ומעלה, בדוק במפורש אם החיבור עומד בכל קריטריוני העוגן של אותו ציון — לא רק ברוח הכללית שלהם. אם שני חיבורים שונים מקבלים אותו ציון בציר מסוים, וודא שיש לך סיבה קונקרטית מתוך שני הטקסטים (לא רק "שניהם טובים") שמצדיקה זהות זו. שיפור מדיד בחיבור (יותר גיוון תחבירי, דוגמאות ספציפיות יותר, התמודדות עמוקה יותר עם טיעון נגדי) חייב להשתקף בשינוי הציון, גם אם רק בציר אחד.
 
 כללים מחייבים:
 - ציין ציון שלם בין 1 ל-6 בכל ציר, ללא חצאים.

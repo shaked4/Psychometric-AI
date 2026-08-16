@@ -344,7 +344,12 @@ answers from a bare question with no context.
   deterministically by normalizing both axes to a 0-1 fraction and feeding
   `lib/exam-history.ts`'s existing `scaleScore()` (the same 50-150 linear approximation the MCQ
   sections use), so an essay's estimate is directly comparable to a section score and isn't
-  trusted to model arithmetic.
+  trusted to model arithmetic. The two fractions are weighted 60/40 (content/language) rather
+  than averaged evenly — with both axes forced to whole integers, an even split means their sum
+  only has 11 possible values, so the estimate could only ever land on an exact multiple of 10;
+  unequal weights spread the 36 possible axis combinations across far more points on the 50-150
+  scale, so a genuinely improved essay can move by 5 or 10 points instead of only ever jumping
+  in 10-point steps (or not moving between similar revisions at all).
 - **Offline fallback is heuristic, not fabricated**: `buildTemplateEvaluation()` in the same
   route computes `contentScore`/`languageScore` from measurements actually taken on the text
   (word count vs. the 300-500 target, paragraph count, Hebrew transition-word usage, average
