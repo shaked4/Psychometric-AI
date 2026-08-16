@@ -17,9 +17,17 @@ interface AnswerOptionsProps {
  * right, and never the correct answer. Correctness and the explanation are
  * deliberately withheld until the end-of-session results screen (see
  * components/practice/session-results.tsx), so a wrong guess doesn't tip
- * off the next question in the same batch. */
+ * off the next question in the same batch.
+ *
+ * Selection is never locked: every option stays clickable after a first
+ * pick, so the student can freely change their answer, and clicking the
+ * already-selected option again deselects it — same freely-reselectable
+ * behavior as exam mode's components/exam/exam-answer-options.tsx.
+ * Nothing is recorded until the student advances/submits
+ * (components/practice/practice-session.tsx's recordCurrentAnswer), so
+ * there's nothing to "undo" here, just a UI choice to stop hiding options
+ * behind a one-shot click. */
 export function AnswerOptions({ choices, selected, section, onSelect }: AnswerOptionsProps) {
-  const answered = selected !== null;
   const dir = section === "verbal" ? undefined : "ltr";
 
   return (
@@ -31,23 +39,17 @@ export function AnswerOptions({ choices, selected, section, onSelect }: AnswerOp
           <button
             key={index}
             type="button"
-            disabled={answered}
             onClick={() => onSelect(index)}
             className={cn(
-              "flex items-center justify-between gap-3 rounded-xl border px-5 py-4 text-start transition",
-              !answered &&
-                "cursor-pointer border-border hover:border-primary/50 hover:bg-muted/60",
-              answered && isSelected && "border-primary bg-primary/10",
-              answered && !isSelected && "border-border opacity-50"
+              "flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-5 py-4 text-start transition",
+              isSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-muted/60"
             )}
           >
             <span className="flex items-center gap-3">
               <span
                 className={cn(
                   "flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-medium",
-                  answered && isSelected
-                    ? "border-primary text-primary"
-                    : "border-border text-muted-foreground"
+                  isSelected ? "border-primary text-primary" : "border-border text-muted-foreground"
                 )}
               >
                 {LETTERS[index]}

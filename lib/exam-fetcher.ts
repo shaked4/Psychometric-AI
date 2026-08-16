@@ -197,6 +197,10 @@ export interface AllocateExamQuestionsParams {
   supabase: SupabaseClient | null;
   section: Section;
   count: number;
+  /** Restricts the pool to one topic within the section (e.g. the
+   * study-sidebar's `?topic=` filter on /practice/[section]) — omitted for
+   * exam mode and quick practice, which draw from the whole section. */
+  topic?: string;
   /** Clerk userId of the signed-in caller, or null for a guest — gates the
    * server-side `attempts` lookup below. Guests still get client-side dedup
    * via clientKnownSolvedIds, just not the cross-device half. */
@@ -237,6 +241,7 @@ export async function allocateExamQuestions({
   supabase,
   section,
   count,
+  topic,
   clerkUserId,
   clientKnownSolvedIds,
 }: AllocateExamQuestionsParams): Promise<AllocateExamQuestionsResult> {
@@ -244,11 +249,9 @@ export async function allocateExamQuestions({
     return { questions: [], recycledCount: 0, bankAvailable: false };
   }
 
-  const extendedResult = await supabase
-    .from("questions")
-    .select(EXTENDED_COLUMNS)
-    .eq("section", section)
-    .limit(POOL_SCAN_LIMIT);
+  let extendedQuery = supabase.from("questions").select(EXTENDED_COLUMNS).eq("section", section);
+  if (topic) extendedQuery = extendedQuery.eq("topic", topic);
+  const extendedResult = await extendedQuery.limit(POOL_SCAN_LIMIT);
   let poolRows = extendedResult.data as QuestionRow[] | null;
   let poolError = extendedResult.error;
 
@@ -257,11 +260,9 @@ export async function allocateExamQuestions({
     // this database — fall back to the columns that definitely exist so
     // allocation (and therefore every exam) still works. Data-interpretation
     // grouping just won't be available until the migration runs.
-    const baseResult = await supabase
-      .from("questions")
-      .select(BASE_COLUMNS)
-      .eq("section", section)
-      .limit(POOL_SCAN_LIMIT);
+    let baseQuery = supabase.from("questions").select(BASE_COLUMNS).eq("section", section);
+    if (topic) baseQuery = baseQuery.eq("topic", topic);
+    const baseResult = await baseQuery.limit(POOL_SCAN_LIMIT);
     poolRows = baseResult.data as QuestionRow[] | null;
     poolError = baseResult.error;
   }

@@ -86,6 +86,13 @@ export function PracticeSession({
   const canProceed = answered;
 
   function handleSelect(index: number) {
+    // Clicking the already-selected option again deselects it, rather than
+    // being a no-op — the student can back out of an answer entirely, not
+    // just switch between choices.
+    if (selected === index) {
+      setSelected(null);
+      return;
+    }
     answerTimeTakenRef.current = Math.max(
       1,
       Math.round((Date.now() - questionStartTimeRef.current) / 1000)

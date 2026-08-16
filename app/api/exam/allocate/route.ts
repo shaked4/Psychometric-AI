@@ -21,6 +21,10 @@ const VALID_SECTIONS: Section[] = ["quant", "verbal", "english"];
 interface AllocateRequestBody {
   section: Section;
   count: number;
+  /** Restricts the draw to one topic within the section — the
+   * study-sidebar's `?topic=` filter on /practice/[section]. Omitted for a
+   * whole-section draw (exam mode, quick practice). */
+  topic?: string;
   /** The caller's locally-known solved question ids (its own attempt log)
    * — merged server-side with this user's synced `attempts` history. */
   excludeQuestionIds?: string[];
@@ -34,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { section, count } = body;
+  const { section, count, topic } = body;
   const excludeQuestionIds = Array.isArray(body.excludeQuestionIds) ? body.excludeQuestionIds : [];
 
   if (!VALID_SECTIONS.includes(section) || !Number.isFinite(count) || count <= 0) {
@@ -63,6 +67,7 @@ export async function POST(req: NextRequest) {
     supabase,
     section,
     count,
+    topic: typeof topic === "string" && topic.length > 0 ? topic : undefined,
     clerkUserId,
     clientKnownSolvedIds: excludeQuestionIds,
   });

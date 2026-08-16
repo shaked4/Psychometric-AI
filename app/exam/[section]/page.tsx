@@ -211,7 +211,9 @@ export default function ExamSectionPage() {
   function handleSelect(index: number) {
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentIndex] = index;
+      // Clicking the already-selected choice again deselects it, leaving
+      // the question unanswered rather than being a no-op.
+      next[currentIndex] = next[currentIndex] === index ? null : index;
       return next;
     });
   }
