@@ -50,18 +50,21 @@
 }
 
 /*
- * Design system: calm study-portal palette (Phase 13 redesign).
+ * Design system: calm study-portal palette (Phase 13 redesign; Phase 19
+ * "premium platform" pass tuned the neutrals and added depth utilities).
  * Primary = deep navy (#0f4c81), secondary accent = teal (#165a72) — used
  * for header accents, primary buttons, active nav/sidebar states, and
- * focus rings. Backgrounds stay a soft off-white with clean white cards
- * and subtle borders rather than stark black/white or saturated fills.
- * Correct/incorrect indicators intentionally aren't redefined here — the
- * green-600 (#16a34a) / red-600 (#dc2626) Tailwind utilities already used
- * throughout components/practice and components/history already match the
- * requested "gentle green" / "soft rose" exactly.
+ * focus rings. --background carries a deliberate, visible slate tint
+ * (Tailwind's slate-100) so --card (kept true white) actually pops off it —
+ * the previous #f9fafb/#ffffff pair was only ~1% apart in lightness, which
+ * read as "everything is white" rather than a layered surface. Correct/
+ * incorrect indicators intentionally aren't redefined here — the green-600
+ * (#16a34a) / red-600 (#dc2626) Tailwind utilities already used throughout
+ * components/practice and components/history already match the requested
+ * "gentle green" / "soft rose" exactly.
  */
 :root {
-  --background: #f9fafb;
+  --background: #f1f5f9;
   --foreground: #111827;
   --card: #ffffff;
   --card-foreground: #111827;
@@ -69,15 +72,15 @@
   --popover-foreground: #111827;
   --primary: #0f4c81;
   --primary-foreground: #ffffff;
-  --secondary: #eef2f6;
+  --secondary: #eef2f7;
   --secondary-foreground: #0f4c81;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
+  --muted: #eef1f5;
+  --muted-foreground: #64748b;
   --accent: #e8f2f6;
   --accent-foreground: #165a72;
   --destructive: #dc2626;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
   --ring: #0f4c81;
   --chart-1: #0f4c81;
   --chart-2: #165a72;
@@ -91,7 +94,7 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e8f2f6;
   --sidebar-accent-foreground: #165a72;
-  --sidebar-border: #e5e7eb;
+  --sidebar-border: #e2e8f0;
   --sidebar-ring: #0f4c81;
 }
 
@@ -138,5 +141,30 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  /* Shared "premium" surface treatment — most cards in this app are
+   * hand-repeated `rounded-xl border border-border bg-card p-5 shadow-sm`
+   * divs rather than a single shared Card component, so these two classes
+   * exist to give the handful of genuinely clickable/interactive ones
+   * (dashboard link-cards, home page stat tiles) a consistent hover-depth
+   * feel without hand-tuning shadow/border values at every call site.
+   * .surface-card-interactive builds on .surface-card and adds the
+   * hover lift; static/non-clickable cards should keep using the plain
+   * inline utilities as before rather than implying false interactivity. */
+  .surface-card {
+    @apply rounded-xl border border-border bg-card shadow-sm;
+  }
+  .surface-card-interactive {
+    @apply rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md;
+  }
+
+  /* Brand gradient — navy primary into teal chart-2, the same two colors
+   * already used for header accents/focus rings elsewhere, so this reads
+   * as an intentional accent rather than an arbitrary new color. */
+  .bg-gradient-brand {
+    @apply bg-gradient-to-br from-primary to-[var(--chart-2)];
   }
 }

@@ -4,7 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 
 export function ReviewQueueCard({ dueCount }: { dueCount: number }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="surface-card-interactive flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <Brain className="size-6 shrink-0 text-primary" />
         <div>

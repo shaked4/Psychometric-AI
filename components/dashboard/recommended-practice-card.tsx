@@ -12,7 +12,7 @@ interface RecommendedPracticeCardProps {
 
 export function RecommendedPracticeCard({ section, topic, accuracy }: RecommendedPracticeCardProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h3 className="text-base font-semibold text-card-foreground">ההמלצה שלנו להיום</h3>
         <p className="mt-1 text-sm text-muted-foreground">

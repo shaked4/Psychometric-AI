@@ -16,7 +16,7 @@ export function AdaptivePracticeCard({ weakTopicCount, dueReviewCount }: Adaptiv
   const hasWork = weakTopicCount > 0 || dueReviewCount > 0;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="surface-card-interactive flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <Sparkles className="size-6 shrink-0 text-primary" />
         <div>
