@@ -182,17 +182,39 @@ function buildTemplateEvaluation(essayText: string, wordCount: number, metrics: 
     0
   );
 
+  // Distinct from TRANSITION_WORDS above: those measure general connective
+  // density (a language-axis signal), this specifically detects whether the
+  // essay actually raises an opposing view — the one piece of the content
+  // rubric (see buildSystemPrompt's "התייחסות אמיתית לטיעון הנגד") a cheap
+  // keyword check can approximate at all.
+  const COUNTERARGUMENT_MARKERS = [
+    "מנגד",
+    "לעומת זאת",
+    "מצד שני",
+    "יש הטוענים",
+    "יש הסבורים",
+    "אחרים טוענים",
+    "אחרים סבורים",
+    "יש החולקים",
+  ];
+  const hasCounterargument = COUNTERARGUMENT_MARKERS.some((marker) => essayText.includes(marker));
+
   const inTargetLength = wordCount >= 300 && wordCount <= 500;
 
+  // Capped at 5, not 6: length, paragraph count, and a keyword-matched
+  // counterargument mention are all this heuristic can actually measure —
+  // none of them verify whether the argument itself is logically sound,
+  // which is most of what the content axis is supposed to grade. Calibrated
+  // against a real external example: the previous version (which could
+  // reach 6 on length/paragraph-count alone) scored a genuine 4.25/6-content
+  // essay as a perfect 6; this version scores it a 5, honestly reflecting
+  // that a live Claude evaluation (see generateOnce below), not this
+  // fallback, is what actually judges argument quality.
   const contentScore = Math.max(
     1,
     Math.min(
-      6,
-      2 +
-        (wordCount >= 250 ? 1 : 0) +
-        (inTargetLength ? 1 : 0) +
-        (paragraphs.length >= 3 ? 1 : 0) +
-        (paragraphs.length >= 4 ? 1 : 0)
+      5,
+      2 + (inTargetLength ? 1 : 0) + (paragraphs.length >= 3 ? 1 : 0) + (hasCounterargument ? 1 : 0)
     )
   );
 
@@ -225,6 +247,12 @@ function buildTemplateEvaluation(essayText: string, wordCount: number, metrics: 
     strengths.push(`החיבור בנוי מ-${paragraphs.length} פסקאות, מה שמעיד על חלוקה מאורגנת של הטיעון.`);
   } else {
     improvements.push("כדאי לחלק את החיבור למספר פסקאות ברורות: פתיחה, גוף הטיעון, התייחסות לעמדה הנגדית וסיכום.");
+  }
+
+  if (hasCounterargument) {
+    strengths.push("ניכרת התייחסות מפורשת לעמדה הנגדית, מה שמחזק את הטיעון המרכזי.");
+  } else {
+    improvements.push('כדאי להוסיף פסקה המתייחסת במפורש לעמדה הנגדית (למשל בפתיחה עם "מנגד" או "יש הטוענים") ולהסביר מדוע עמדתכם עדיפה.');
   }
 
   if (transitionCount >= 2) {
