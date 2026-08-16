@@ -39,6 +39,29 @@ export const GeneratedQuestionSchema = z.object({
   explanation: z.string(),
 });
 
+/**
+ * Condensed prompt-injection version of docs/psychometric_question_generation_guide.md
+ * — structural/stylistic patterns and distractor-design principles distilled
+ * from reviewing a real exam's *format*, not any text reproduced from it (see
+ * that doc's "Scope and provenance" section for the exact boundary). Shared
+ * by every AI generation path via buildSystemPrompt() below, so updating it
+ * once updates /api/generate-question, /api/generate-questions, and
+ * scripts/seed-question-bank.ts together.
+ */
+const EXAM_STYLE_GUIDELINES = `
+עקרונות סגנון וקושי (מבוססים על ניתוח מבנה בחינות פסיכומטריות אמיתיות — ראה docs/psychometric_question_generation_guide.md):
+- התאם את רמת הקושי המבוקשת לאבחנה הבאה, לא רק ל"תחושה":
+  · כמותי: קלה = שלב חישוב אחד-שניים; בינונית = 2-3 שלבים או שילוב שני מושגים (למשל אחוז מתוך אחוז); קשה = שילוב כמה מושגים, בעיה מילולית רב-שלבית (קצבים/עבודה/תערובות/תנועה), או שאלת "מה בהכרח נכון" הדורשת בדיקת כל האפשרויות מול הנתונים.
+  · מילולי: קלה = מחבר לוגי נפוץ (כי, אבל); בינונית = משפט טעם שחייב מעקב כדי להכריע בין אפשרויות; קשה = חידת היגיון עם 3+ נתונים הדורשת בדיקת מקרים ממצה, או טיעון הדורש זיהוי הנחת יסוד/החלשה-חיזוק.
+  · אנגלית: קלה = אוצר מילים יומיומי; בינונית = מילה פחות שכיחה הדורשת הבחנה בין קונוטציות קרובות; קשה = מבנה דקדוקי מורכב (תנאי מעורב, מבנה קורלטיבי) או ניסוח מחדש שבו שינוי דק במילה אחת (למשל "מעט" מול "באופן דרמטי") הוא ההבדל בין נכון לשגוי.
+- לקטע הכמותי עומד לרשות הנבחן דף נוסחאות: אחוזים, חזקות ושורשים, זהויות כפל מקוצר (a±b)², הפרש ריבועים, עצרת ותמורות, משפט תאלס/משולשים דומים, משפט פיתגורס ומשולש 30-60-90, היקף/שטח/גזרה במעגל, נפח ושטח פנים של גליל וחרוט, שטח טרפז — בסס שאלות על נוסחאות אלו ישירות, ובקושי גבוה שלב שתיים מהן באותה שאלה.
+- כל מסיח (תשובה שגויה) חייב לתאום טעות ספציפית ושמה ניתנת, לא תשובה אקראית:
+  · כמותי: נוסחה נכונה עם משתנה שגוי, טעות של אחד בספירת איברים/מרווחים, בסיס אחוז הפוך, עצירה שלב אחד לפני הסוף, שימוש בשורה/עמודה הלא נכונה בטבלת נתונים, יחס הפוך (A:B במקום B:A).
+  · אנלוגיה: סדר הפוך של אותו יחס, יחס דומה אך שונה מהותית, חלק דיבור שונה.
+  · השלמת משפט: מילה שמתאימה דקדוקית אך סותרת את משפט הטעם, מילה שמתאימה לצד ההפוך של ניגוד.
+  · הבנת הנקרא/ניסוח מחדש: פרט נכון המוצג כרעיון מרכזי, הכללת יתר לא מבוססת, היפוך של הטענה המקורית, סיבה-תוצאה הפוכה, שינוי עוצמה של מילת-הגבלה.
+- כשמתבקשת אצווה של כמה שאלות באותו נושא, סדר אותן בקושי עולה בהדרגה.`;
+
 export function buildSystemPrompt(excludeTexts: string[]): string {
   const avoidanceBlock =
     excludeTexts.length > 0
@@ -56,23 +79,32 @@ export function buildSystemPrompt(excludeTexts: string[]): string {
 - שדה explanation מסביר את דרך הפתרון המלאה, צעד אחר צעד, בעברית, ולא רק מציין את התשובה הנכונה.
 - שאלות בקטע אנגלית (section = english) חייבות להיות כתובות כולן באנגלית: body, choices ו-explanation. שאלות בקטעים כמותי ומילולי נכתבות בעברית.
 - שדה passage יהיה null אלא אם התבקשת ליצור שאלת הבנת הנקרא עם קטע קריאה קצר.
-- אם אינך בטוח באחוזים מלאים שהשאלה נכונה ופתירה בבירור, אל תכלול אותה.${avoidanceBlock}`;
+- אם אינך בטוח באחוזים מלאים שהשאלה נכונה ופתירה בבירור, אל תכלול אותה.
+${EXAM_STYLE_GUIDELINES}${avoidanceBlock}`;
 }
 
 export function buildUserPrompt(
   section: Section,
   topic: string | undefined,
   subtopic: string | undefined,
-  difficulty: Difficulty
+  difficulty: Difficulty,
+  count?: number
 ): string {
   const topicInstruction = subtopic
-    ? `השאלה חייבת להתמקד בנושא "${topic ?? subtopic}" ותת-הנושא "${subtopic}" — השתמש בדיוק בערכים האלה בשדות topic ו-subtopic.`
-    : "בחר בעצמך נושא ותת-נושא מתאימים לסגנון המבחן הפסיכומטרי.";
+    ? `${count && count > 1 ? "כל השאלות חייבות" : "השאלה חייבת"} להתמקד בנושא "${topic ?? subtopic}" ותת-הנושא "${subtopic}" — השתמש בדיוק בערכים האלה בשדות topic ו-subtopic${count && count > 1 ? " של כל שאלה" : ""}.`
+    : `בחר בעצמך נושא${count && count > 1 ? "ים ותתי-נושאים מגוונים" : " ותת-נושא"} מתאימים לסגנון המבחן הפסיכומטרי.`;
 
   const englishReminder =
-    section === "english" ? "\nתזכורת: כל תוכן השאלה (body, choices, explanation) חייב להיות באנגלית בלבד." : "";
+    section === "english"
+      ? `\nתזכורת: כל תוכן ${count && count > 1 ? "השאלות" : "השאלה"} (body, choices, explanation) חייב להיות באנגלית בלבד.`
+      : "";
 
-  return `צור שאלה חדשה ומקורית אחת בקטע ${SECTION_LABELS[section]}, ברמת קושי ${DIFFICULTY_LABELS_HE[difficulty]}.
+  const opening =
+    count && count > 1
+      ? `צור בדיוק ${count} שאלות חדשות ומקוריות בקטע ${SECTION_LABELS[section]}, ברמת קושי ${DIFFICULTY_LABELS_HE[difficulty]}.`
+      : `צור שאלה חדשה ומקורית אחת בקטע ${SECTION_LABELS[section]}, ברמת קושי ${DIFFICULTY_LABELS_HE[difficulty]}.`;
+
+  return `${opening}
 ${topicInstruction}${englishReminder}`;
 }
 
