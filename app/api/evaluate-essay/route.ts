@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { scaleScore } from "@/lib/exam-history";
 import type { EssayEvaluation } from "@/lib/essay-storage";
 
 // Haiku, not Sonnet: essay evaluation was taking 20-40s end-to-end on
@@ -15,18 +14,14 @@ import type { EssayEvaluation } from "@/lib/essay-storage";
 // well within a fast model's ability; this isn't open-ended reasoning.
 const MODEL = "claude-haiku-4-5-20251001";
 
-// Structured outputs don't support numeric min/max constraints, so the 1-6
-// NITE scale is expressed as a literal union and re-validated by hand where
-// it matters — the same workaround app/api/generate-questions/route.ts uses
-// for correctAnswer.
-const SCORE_1_TO_6 = z.union([
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-  z.literal(4),
-  z.literal(5),
-  z.literal(6),
-]);
+// Structured outputs don't support numeric min/max constraints, so this is
+// deliberately an unconstrained z.number() rather than z.number().min(1).max(6)
+// — the 1-6 range is enforced by prompt instruction plus clampAxisScore()
+// below, not by the schema. (app/api/generate-questions/route.ts's
+// correctAnswer takes the opposite approach — a literal union — because it's
+// a small discrete set; that trick doesn't extend to a continuous decimal
+// range like this one.)
+const DECIMAL_SCORE_1_TO_6 = z.number();
 
 const SentenceFeedbackSchema = z.object({
   original: z.string(),
@@ -35,12 +30,22 @@ const SentenceFeedbackSchema = z.object({
 });
 
 const EvaluationSchema = z.object({
-  contentScore: SCORE_1_TO_6,
-  languageScore: SCORE_1_TO_6,
+  contentScore: DECIMAL_SCORE_1_TO_6,
+  languageScore: DECIMAL_SCORE_1_TO_6,
   strengths: z.array(z.string()),
   improvements: z.array(z.string()),
   reminiscentExamples: z.array(SentenceFeedbackSchema),
 });
+
+/** The schema above can't enforce the 1-6 bound (see comment on
+ * DECIMAL_SCORE_1_TO_6), so this is the actual guarantee: any value the
+ * model returns gets clamped into range before it's ever used to compute
+ * strengths/improvements text or the estimated score. Also guards against
+ * a non-finite value (NaN, Infinity) reaching the client. */
+function clampAxisScore(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(1, Math.min(6, value));
+}
 
 const MIN_WORDS_FOR_EVALUATION = 50;
 
@@ -112,35 +117,25 @@ function computeEssayMetrics(essayText: string): EssayMetrics {
   };
 }
 
-// Deliberately unequal (not 50/50): both axes are whole 1-6 integers
-// (structured outputs can't express decimals — see SCORE_1_TO_6 above), so
-// an even split means (contentScore-1)+(languageScore-1) only has 11
-// possible sums (0-10) — the estimate could only ever land on an exact
-// multiple of 10 (50, 60, ..., 150), no matter how nuanced the model's
-// judgment actually was. That's a hard "bucket cap" baked into the
-// arithmetic itself, not something prompt tuning can fix. Weighting content
-// 60/language 40 means a single-point change on either axis is worth a
-// different amount (11 vs 9 raw points before scaleScore's own round-to-5),
-// so far more of the 36 possible (contentScore, languageScore) combinations
-// land on distinct points along the scale — 19 of the 21 multiples of 5
-// between 50-150 are reachable this way, letting a genuinely improved essay
-// move from e.g. 130 to 135 or 140 instead of jumping straight to 150 (or
-// not moving at all).
-const CONTENT_WEIGHT = 0.6;
-const LANGUAGE_WEIGHT = 0.4;
-
 /**
  * The model is asked for contentScore/languageScore, never for the final
  * estimate — same stats-layer-vs-narrative-layer split as everywhere else
- * in this codebase (CLAUDE.md). Reuses the exam sections' own scaleScore()
- * curve (round-to-nearest-5, clamped 50-150) so an essay's estimate is
- * directly comparable to a section score. A flagged-invalid essay always
- * bottoms out at scaleScore's own floor (50), which this formula already
- * produces when both axes are 1 — no separate constant needed.
+ * in this codebase (CLAUDE.md). An even 50/50 average is safe to use again
+ * now that both axes are genuine decimals (see DECIMAL_SCORE_1_TO_6 above)
+ * rather than whole integers — the "only 11 possible sums" bucket-cap
+ * problem the earlier 60/40 weighting worked around no longer applies, since
+ * a continuous input naturally produces a continuous output. Deliberately
+ * NOT lib/exam-history.ts's scaleScore(): that rounds to the nearest 5 to
+ * match the MCQ sections' real-exam-style reporting, which would throw away
+ * the decimal precision this is built for (e.g. 4.25 vs 4.4 should be
+ * distinguishable in the final estimate) — this rounds to the nearest whole
+ * integer instead, clamped to the same 50-150 range.
  */
 function estimatePsychometricScore(contentScore: number, languageScore: number): number {
-  const fraction = ((contentScore - 1) / 5) * CONTENT_WEIGHT + ((languageScore - 1) / 5) * LANGUAGE_WEIGHT;
-  return scaleScore(fraction);
+  const average = (contentScore + languageScore) / 2; // 1-6 scale
+  const fraction = (average - 1) / 5; // normalized to 0-1
+  const raw = 50 + fraction * 100; // 50-150
+  return Math.max(50, Math.min(150, Math.round(raw)));
 }
 
 /** Deterministic result for text flagged by computeEssayMetrics() —
@@ -319,7 +314,7 @@ function buildTemplateEvaluation(essayText: string, wordCount: number, metrics: 
 function buildSystemPrompt(): string {
   return `אתה בוחן מקצועי המעריך מטלות כתיבה (חיבור טיעון) בסגנון המבחן הפסיכומטרי הישראלי, לפי אמות המידה של המרכז הארצי לבחינות ולהערכה (המיצ"ב הפסיכומטרי).
 
-הערך את החיבור בשני צירים נפרדים, כל אחד בסולם שלם של 1 עד 6. לכל ציר יש עוגני ציון קונקרטיים — קרא אותם בעיון והשתמש בהם כדי להבחין בין רמות סמוכות (למשל בין 4 ל-5, או בין 5 ל-6), ולא רק בין "טוב" ל"פחות טוב":
+הערך את החיבור בשני צירים נפרדים, כל אחד בסולם רציף בין 1 ל-6. לכל ציר יש עוגני ציון קונקרטיים ברמות השלמות (1-6) — קרא אותם בעיון והשתמש בהם כדי להבחין בין רמות סמוכות (למשל בין 4 ל-5, או בין 5 ל-6), ולא רק בין "טוב" ל"פחות טוב". אם רמת החיבור נמצאת בין שתי רמות עוגן סמוכות, אל תעגלו אוטומטית לרמה הקרובה — ציינו ערך עשרוני מדויק המשקף את מיקומו היחסי (למשל 4.5 אם הוא בדיוק באמצע בין רמה 4 ל-5, או 4.25 אם הוא קרוב יותר לרמה 4 אך חורג ממנה בבירור בהיבט אחד או שניים):
 
 מימד התוכן (contentScore) — עוגני ציון:
 1: לא רלוונטי לנושא, חסר תזה, או טקסט חסר משמעות.
@@ -340,7 +335,7 @@ function buildSystemPrompt(): string {
 כלל מכריע נגד ציונים סטטיים: אל תיתן ציון 5 כברירת מחדל לחיבור "טוב באופן כללי". לפני שאתה קובע ציון של 5 ומעלה, בדוק במפורש אם החיבור עומד בכל קריטריוני העוגן של אותו ציון — לא רק ברוח הכללית שלהם. אם שני חיבורים שונים מקבלים אותו ציון בציר מסוים, וודא שיש לך סיבה קונקרטית מתוך שני הטקסטים (לא רק "שניהם טובים") שמצדיקה זהות זו. שיפור מדיד בחיבור (יותר גיוון תחבירי, דוגמאות ספציפיות יותר, התמודדות עמוקה יותר עם טיעון נגדי) חייב להשתקף בשינוי הציון, גם אם רק בציר אחד.
 
 כללים מחייבים:
-- ציין ציון שלם בין 1 ל-6 בכל ציר, ללא חצאים.
+- ציין ציון עשרוני מדויק בין 1 ל-6 בכל ציר (למשל 4.25, 3.8 או 5.1) — לא רק מספרים שלמים. עיגול גס למספר שלם כאשר החיבור בבירור נמצא בין שתי רמות עוגן הוא טעות: אם החיבור טוב יותר מרמת עוגן 4 אך לא מגיע לכל קריטריוני רמה 5, ציינו ערך כמו 4.2 או 4.4 בהתאם למידת הקרבה, ולא סתם 4 או 5.
 - strengths: 2-4 נקודות חוזק קונקרטיות, מבוססות על מה שבאמת כתוב בטקסט.
 - improvements: 2-4 הערות ביקורת בונה וממוקדת, גם על תוכן וגם על לשון.
 - reminiscentExamples: 2-4 פריטים של משוב ברמת המשפט — כל פריט מצטט משפט אמיתי מתוך הטקסט של הכותב/ת בשדה original (העתק מדויק, לא פרפרזה), מציע ניסוח חלופי או משופר בשדה suggestion, ומסביר בקצרה מדוע בשדה comment.
@@ -440,8 +435,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { contentScore, languageScore, strengths, improvements, reminiscentExamples } =
-      response.parsed_output;
+    const { strengths, improvements, reminiscentExamples } = response.parsed_output;
+    // Rounded to 2 decimals purely for display sanity (a raw float straight
+    // off the model is already clean in practice, but this guards against
+    // something like 4.2500000001) — clampAxisScore() is the actual 1-6
+    // enforcement, since the schema itself can't declare that bound.
+    const contentScore = Math.round(clampAxisScore(response.parsed_output.contentScore) * 100) / 100;
+    const languageScore = Math.round(clampAxisScore(response.parsed_output.languageScore) * 100) / 100;
 
     const evaluation: EssayEvaluation = {
       contentScore,
