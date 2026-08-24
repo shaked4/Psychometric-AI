@@ -41,7 +41,10 @@ export default function Home() {
         </span>
 
         <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
-          המאמן הפסיכומטרי האישי שלך
+          המאמן הפסיכומטרי{" "}
+          <span className="text-glow-brand bg-gradient-brand bg-clip-text text-transparent">
+            האישי שלך
+          </span>
         </h1>
 
         <p className="max-w-xl text-balance text-lg text-muted-foreground">

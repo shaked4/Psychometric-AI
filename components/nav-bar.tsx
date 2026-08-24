@@ -64,7 +64,7 @@ export function NavBar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                  "relative rounded-full px-3 py-2 text-sm font-medium transition-all duration-200",
                   isActive
                     ? "bg-primary/10 font-semibold text-primary"
                     : "text-muted-foreground hover:-translate-y-px hover:bg-muted/60 hover:text-foreground"

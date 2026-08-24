@@ -57,25 +57,29 @@ export default function DashboardPage() {
         avgTimeSeconds={overall.avgTimeSeconds}
       />
 
-      <DailyGoalCard
-        questionsToday={todayProgress.questionsToday}
-        essaysToday={todayProgress.essaysToday}
-        streakDays={overall.streakDays}
-      />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <DailyGoalCard
+          questionsToday={todayProgress.questionsToday}
+          essaysToday={todayProgress.essaysToday}
+          streakDays={overall.streakDays}
+        />
 
-      <ReadinessIndexCard breakdown={readiness} hasAttempts={overall.totalAnswered > 0} />
+        <ReadinessIndexCard breakdown={readiness} hasAttempts={overall.totalAnswered > 0} />
+      </div>
 
-      <RecommendedPracticeCard
-        section={recommended?.section ?? null}
-        topic={recommended?.topic ?? null}
-        accuracy={recommended?.accuracy ?? null}
-      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <RecommendedPracticeCard
+          section={recommended?.section ?? null}
+          topic={recommended?.topic ?? null}
+          accuracy={recommended?.accuracy ?? null}
+        />
 
-      <ReviewQueueCard dueCount={reviewQueue.dueToday.length} />
+        <ReviewQueueCard dueCount={reviewQueue.dueToday.length} />
 
-      <AdaptivePracticeCard weakTopicCount={weakTopicCount} dueReviewCount={reviewQueue.dueToday.length} />
+        <AdaptivePracticeCard weakTopicCount={weakTopicCount} dueReviewCount={reviewQueue.dueToday.length} />
 
-      <PostMortemCard totalIncorrect={postMortem.totalIncorrect} totalTagged={postMortem.totalTagged} />
+        <PostMortemCard totalIncorrect={postMortem.totalIncorrect} totalTagged={postMortem.totalTagged} />
+      </div>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">מגמת ציונים בסימולציות</h2>
