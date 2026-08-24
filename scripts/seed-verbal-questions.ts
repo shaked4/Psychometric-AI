@@ -61,7 +61,7 @@ const VERBAL_QUESTIONS: HardcodedQuestion[] = [
     topic: "אנלוגיות",
     subtopic: "יחס כלי לחומר שעליו הוא פועל",
     difficulty: 2,
-    body: 'מסור : עצים\n\n(משפט מגדיר את היחס: "מסור הוא כלי המשמש לחיתוך עצים.")\n\nאיזה זוג מילים מבטא את אותו יחס?',
+    body: "מסור : עצים –",
     choices: ["מחרשה : אדמה", "עצים : רהיטים", "נגר : עצים", "גשם : עצים"],
     correctAnswer: 0,
     explanation:
@@ -72,7 +72,7 @@ const VERBAL_QUESTIONS: HardcodedQuestion[] = [
     topic: "אנלוגיות",
     subtopic: "יחס מקצוע למקום עבודה אופייני",
     difficulty: 3,
-    body: 'טבח : מסעדה\n\n(משפט מגדיר את היחס: "טבח הוא בעל מקצוע שמקום עבודתו האופייני הוא מסעדה.")\n\nאיזה זוג מילים מבטא את אותו יחס?',
+    body: "טבח : מסעדה –",
     choices: ["רופא : בית חולים", "בית חולים : רופא", "טבח : אוכל", "מורה : תלמיד"],
     correctAnswer: 0,
     explanation:
@@ -83,7 +83,7 @@ const VERBAL_QUESTIONS: HardcodedQuestion[] = [
     topic: "אנלוגיות",
     subtopic: "ניגוד בעוצמה של תכונה",
     difficulty: 3,
-    body: 'קר : קפוא\n\n(משפט מגדיר את היחס: "קפוא מתאר עוצמה קיצונית ומודגשת יותר של התכונה \'קר\'.")\n\nאיזה זוג מילים מבטא את אותו יחס?',
+    body: "קר : קפוא –",
     choices: ["חם : רותח", "רותח : חם", "קר : חם", "קפוא : קרח"],
     correctAnswer: 0,
     explanation:
@@ -94,7 +94,7 @@ const VERBAL_QUESTIONS: HardcodedQuestion[] = [
     topic: "אנלוגיות",
     subtopic: "יחס שלם ליחידת מבנה עוקבת",
     difficulty: 4,
-    body: 'ספר : פרק\n\n(משפט מגדיר את היחס: "ספר מורכב מפרקים המסודרים ברצף קבוע.")\n\nאיזה זוג מילים מבטא את אותו יחס?',
+    body: "ספר : פרק –",
     choices: ["מחזה : מערכה", "מערכה : מחזה", "ספר : סופר", "עיתון : כתב"],
     correctAnswer: 0,
     explanation:
