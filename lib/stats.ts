@@ -1,5 +1,6 @@
 import { MOCK_QUESTIONS } from "@/lib/mock-data";
 import { getCachedQuestion } from "@/lib/question-cache";
+import { scaleScore } from "@/lib/exam-history";
 import type { Attempt, Question, Section, SelfReportedError, TopicStats } from "@/types";
 
 const QUESTIONS_BY_ID = new Map(MOCK_QUESTIONS.map((q) => [q.id, q]));
@@ -211,4 +212,46 @@ export function getRecommendedTopic(topicStats: TopicStatsWithSection[]): TopicS
   const attempted = topicStats.filter((t) => t.attemptCount > 0);
   if (attempted.length === 0) return null;
   return [...attempted].sort((a, b) => a.accuracy - b.accuracy)[0];
+}
+
+export interface SectionAccuracy {
+  accuracyPct: number;
+  attemptCount: number;
+}
+
+/** Per-section accuracy across all attempts (practice + exam) — no rollup
+ * from per-topic to per-section existed before computeMultidisciplinaryScore
+ * needed one. */
+export function computeSectionAccuracy(attempts: Attempt[], section: Section): SectionAccuracy {
+  const sectionAttempts = attempts.filter((a) => getQuestion(a.questionId)?.section === section);
+  const correct = sectionAttempts.filter((a) => a.isCorrect).length;
+  return {
+    attemptCount: sectionAttempts.length,
+    accuracyPct: sectionAttempts.length === 0 ? 0 : Math.round((correct / sectionAttempts.length) * 100),
+  };
+}
+
+export interface MultidisciplinaryScore {
+  score: number; // scaleScore() output, 50-150
+  quantAccuracyPct: number;
+  verbalAccuracyPct: number;
+  hasEnoughData: boolean;
+}
+
+/** 2026-format "ציון רב-תחומי": 50% quant + 50% verbal accuracy, English
+ * excluded — starting December 2026, NITE separates English out into the
+ * standalone AMIRNET test and the main exam becomes quant+verbal only. Only
+ * the 50/50 weighting is implemented here; NITE's 75/25 and 25/75
+ * domain-focused score variants are deliberately out of scope. */
+export function computeMultidisciplinaryScore(attempts: Attempt[]): MultidisciplinaryScore {
+  const quant = computeSectionAccuracy(attempts, "quant");
+  const verbal = computeSectionAccuracy(attempts, "verbal");
+  const hasEnoughData = quant.attemptCount > 0 && verbal.attemptCount > 0;
+  const blendedFraction = (quant.accuracyPct * 0.5 + verbal.accuracyPct * 0.5) / 100;
+  return {
+    score: hasEnoughData ? scaleScore(blendedFraction) : 50,
+    quantAccuracyPct: quant.accuracyPct,
+    verbalAccuracyPct: verbal.accuracyPct,
+    hasEnoughData,
+  };
 }

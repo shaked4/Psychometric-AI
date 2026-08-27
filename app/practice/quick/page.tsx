@@ -93,7 +93,7 @@ export default function QuickPracticePage() {
           <>
             <Loader2 className="size-8 animate-spin text-primary" />
             <p className="text-base font-medium text-foreground">מכינים {QUICK_PRACTICE_TOTAL} שאלות מגוונות...</p>
-            <p className="text-sm text-muted-foreground">כמותי, מילולי ואנגלית — כמה שאלות, בלי לחץ, בלי שעון</p>
+            <p className="text-sm text-muted-foreground">כמותי, מילולי ואמירנט — כמה שאלות, בלי לחץ, בלי שעון</p>
           </>
         ) : (
           <>

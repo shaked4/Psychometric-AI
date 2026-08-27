@@ -3,7 +3,7 @@
 import { useAttempts } from "@/lib/use-attempts";
 import { useExamHistory } from "@/lib/use-exam-history";
 import { useEssayAttempts } from "@/lib/use-essay-attempts";
-import { computeErrorInsights, computeOverallStats, getRecommendedTopic } from "@/lib/stats";
+import { computeErrorInsights, computeMultidisciplinaryScore, computeOverallStats, getRecommendedTopic } from "@/lib/stats";
 import { computeReviewQueue } from "@/lib/spaced-repetition";
 import { computeTopicMasteryMatrix } from "@/lib/mastery";
 import { computeReadinessIndex } from "@/lib/readiness";
@@ -15,6 +15,7 @@ import { TopicMasteryCard } from "@/components/dashboard/topic-mastery-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { RecommendedPracticeCard } from "@/components/dashboard/recommended-practice-card";
 import { ReadinessIndexCard } from "@/components/dashboard/readiness-index-card";
+import { MultidisciplinaryScoreCard } from "@/components/dashboard/multidisciplinary-score-card";
 import { ReviewQueueCard } from "@/components/dashboard/review-queue-card";
 import { AdaptivePracticeCard } from "@/components/dashboard/adaptive-practice-card";
 import { PostMortemCard } from "@/components/dashboard/post-mortem-card";
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   const insights = computeErrorInsights(attempts);
   const recommended = getRecommendedTopic(masteryMatrix);
   const readiness = computeReadinessIndex(attempts);
+  const multidisciplinaryScore = computeMultidisciplinaryScore(attempts);
   const reviewQueue = computeReviewQueue(attempts);
   const postMortem = computePostMortemStats(attempts);
   const weakTopicCount = masteryMatrix.filter((t) => t.needsReinforcement).length;
@@ -66,6 +68,8 @@ export default function DashboardPage() {
 
         <ReadinessIndexCard breakdown={readiness} hasAttempts={overall.totalAnswered > 0} />
       </div>
+
+      <MultidisciplinaryScoreCard result={multidisciplinaryScore} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <RecommendedPracticeCard

@@ -8,7 +8,7 @@ import type { Section } from "@/types";
 const SECTION_LABELS: Record<Section, string> = {
   quant: "כמותי",
   verbal: "מילולי",
-  english: "אנגלית",
+  english: "אמירנט (אנגלית)",
 };
 
 const SECTIONS: Section[] = ["quant", "verbal", "english"];

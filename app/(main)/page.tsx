@@ -15,7 +15,7 @@ const FEATURE_TILES = [
     href: "/exam/quant",
     icon: BookOpenCheck,
     title: "3 מקצועות, סימולציה אחת",
-    description: "כמותי, מילולי ואנגלית בתנאי זמן אמיתיים, בדיוק כמו במבחן.",
+    description: "כמותי, מילולי ואמירנט בתנאי זמן אמיתיים, בדיוק כמו במבחן.",
   },
   {
     href: "/essay",
@@ -49,7 +49,7 @@ export default function Home() {
 
         <p className="max-w-xl text-balance text-lg text-muted-foreground">
           לא עוד בנק שאלות. פסיכומטרי AI לומד איך אתם חושבים, מזהה נקודות חוזק
-          וחולשה, ובונה עבורכם תוכנית תרגול אישית — כמותי, מילולי ואנגלית.
+          וחולשה, ובונה עבורכם תוכנית תרגול אישית — כמותי, מילולי ואמירנט.
         </p>
 
         <div className="flex flex-col items-center gap-2">
