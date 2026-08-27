@@ -48,8 +48,14 @@ export default function AdaptivePracticePage() {
   const [sessionQuestions, setSessionQuestions] = useState<Question[] | null>(null);
 
   const masteryMatrix = useMemo(() => computeTopicMasteryMatrix(attempts), [attempts]);
+  // Adaptive practice is scoped to the core psychometric pair (quant/verbal)
+  // now that English lives under its own explicit AmiraNet track
+  // (/practice/english) — it should never surface here automatically.
   const weakTopics = useMemo(
-    () => masteryMatrix.filter((t) => t.needsReinforcement).slice(0, MAX_REINFORCEMENT_TOPICS),
+    () =>
+      masteryMatrix
+        .filter((t) => t.needsReinforcement && t.section !== "english")
+        .slice(0, MAX_REINFORCEMENT_TOPICS),
     [masteryMatrix]
   );
 
@@ -57,7 +63,7 @@ export default function AdaptivePracticePage() {
     const { dueToday } = computeReviewQueue(attempts);
     return dueToday
       .map((item) => getQuestion(item.questionId))
-      .filter((q): q is Question => q !== undefined);
+      .filter((q): q is Question => q !== undefined && q.section !== "english");
   }, [attempts]);
 
   const hasWork = dueQuestions.length > 0 || weakTopics.length > 0;

@@ -2,38 +2,48 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CLERK_ENABLED } from "@/lib/config";
 import { ClerkAuthSection } from "@/components/auth/clerk-auth-section";
 import { GuestModeBadge } from "@/components/auth/guest-mode-badge";
 import { useAttempts } from "@/lib/use-attempts";
 import { computeReviewQueue } from "@/lib/spaced-repetition";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-/** Every top-level destination, laid out horizontally with no collapsed
- * "עוד" menu — flex-wrap is the only concession to narrow windows (the ask
- * was specifically "no dropdown on desktop," not "never wrap"), so at
- * normal desktop widths this reads as one clean row and only wraps to a
- * second line if the viewport genuinely can't fit all of it. */
-const NAV_ROUTES = [
+const PRACTICE_VARIANT_ROUTES = ["/practice/review", "/practice/adaptive", "/practice/custom"];
+
+/** The four destinations that earn a permanent slot in the bar itself —
+ * everything else lives one click away behind the "עוד" menu below, so the
+ * bar reads as one clean row instead of the previous flat 12-item list. */
+const PRIMARY_ROUTES = [
   { href: "/", label: "בית", match: (p: string) => p === "/" },
   {
     href: "/practice/quant",
     label: "תרגול",
     match: (p: string) => p.startsWith("/practice") && !PRACTICE_VARIANT_ROUTES.some((r) => p.startsWith(r)),
   },
-  { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
-  { href: "/practice/adaptive", label: "תרגול אדפטיבי", match: (p: string) => p.startsWith("/practice/adaptive") },
-  { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
   { href: "/exam/quant", label: "בחינות", match: (p: string) => p.startsWith("/exam") },
   { href: "/essay", label: "מטלת כתיבה", match: (p: string) => p.startsWith("/essay") },
+];
+
+/** Practice variants, review/analysis tools, and account pages — grouped
+ * behind the "עוד" trigger instead of each competing for a slot up top. */
+const SECONDARY_ROUTES = [
+  { href: "/practice/adaptive", label: "תרגול אדפטיבי", match: (p: string) => p.startsWith("/practice/adaptive") },
+  { href: "/practice/custom", label: "תרגול מותאם AI", match: (p: string) => p.startsWith("/practice/custom") },
+  { href: "/practice/review", label: "חזרה מרווחת", match: (p: string) => p.startsWith("/practice/review") },
+  { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
   { href: "/cheatsheets", label: "גיליון נוסחאות", match: (p: string) => p.startsWith("/cheatsheets") },
   { href: "/history", label: "תחקור שאלות", match: (p: string) => p.startsWith("/history") },
   { href: "/post-mortem", label: "תחקור מעמיק", match: (p: string) => p.startsWith("/post-mortem") },
-  { href: "/dashboard", label: "לוח בקרה", match: (p: string) => p.startsWith("/dashboard") },
   { href: "/profile", label: "פרופיל", match: (p: string) => p.startsWith("/profile") },
 ];
-
-const PRACTICE_VARIANT_ROUTES = ["/practice/review", "/practice/adaptive", "/practice/custom"];
 
 function DueBadge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -48,6 +58,7 @@ export function NavBar() {
   const pathname = usePathname();
   const attempts = useAttempts();
   const dueCount = computeReviewQueue(attempts).dueToday.length;
+  const isSecondaryActive = SECONDARY_ROUTES.some((item) => item.match(pathname));
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
@@ -57,7 +68,7 @@ export function NavBar() {
         </Link>
 
         <nav className="flex flex-wrap items-center gap-1">
-          {NAV_ROUTES.map((item) => {
+          {PRIMARY_ROUTES.map((item) => {
             const isActive = item.match(pathname);
             return (
               <Link
@@ -71,15 +82,47 @@ export function NavBar() {
                 )}
               >
                 {item.label}
-                {(item.href === "/practice/review" || item.href === "/practice/adaptive") && (
-                  <DueBadge count={dueCount} />
-                )}
                 {isActive && (
                   <span className="absolute inset-x-3 -bottom-[calc(1rem+1px)] h-0.5 rounded-full bg-gradient-brand" />
                 )}
               </Link>
             );
           })}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(
+                "relative flex items-center gap-1 rounded-full px-3 py-2 text-sm font-medium outline-none transition-all duration-200",
+                isSecondaryActive
+                  ? "bg-primary/10 font-semibold text-primary"
+                  : "text-muted-foreground hover:-translate-y-px hover:bg-muted/60 hover:text-foreground"
+              )}
+            >
+              עוד
+              <DueBadge count={dueCount} />
+              <ChevronDown className="size-3.5" />
+              {isSecondaryActive && (
+                <span className="absolute inset-x-3 -bottom-[calc(1rem+1px)] h-0.5 rounded-full bg-gradient-brand" />
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-48">
+              {SECONDARY_ROUTES.map((item) => {
+                const isActive = item.match(pathname);
+                return (
+                  <DropdownMenuItem
+                    key={item.href}
+                    render={<Link href={item.href} />}
+                    className={cn("justify-between", isActive && "bg-primary/10 font-semibold text-primary")}
+                  >
+                    {item.label}
+                    {(item.href === "/practice/review" || item.href === "/practice/adaptive") && (
+                      <DueBadge count={dueCount} />
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
