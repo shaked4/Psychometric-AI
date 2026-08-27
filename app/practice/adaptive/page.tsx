@@ -11,12 +11,17 @@ import { computeReviewQueue } from "@/lib/spaced-repetition";
 import { computeTopicMasteryMatrix } from "@/lib/mastery";
 import { getQuestion, SECTION_LABELS } from "@/lib/stats";
 import { cacheQuestions } from "@/lib/question-cache";
-import type { Question } from "@/types";
+import type { Question, Section } from "@/types";
 
 /** How many distinct weak subtopics get a freshly-generated reinforcement
  * question injected per session — capped so starting a session never fires
  * a large fan-out of Claude calls. */
 const MAX_REINFORCEMENT_TOPICS = 3;
+/** Hard ceiling on backfill fetches per session-start — a safety bound in
+ * case the pool is small enough that fetches keep coming back as
+ * duplicates, not a number we expect to actually hit in practice. */
+const MAX_BACKFILL_ATTEMPTS = 10;
+const BACKFILL_SECTIONS: Section[] = ["quant", "verbal"];
 
 type WeakTopicWithBodies = ReturnType<typeof computeTopicMasteryMatrix>[number] & { recentBodies: string[] };
 
@@ -39,6 +44,43 @@ async function fetchReinforcementQuestion(topic: WeakTopicWithBodies): Promise<Q
   } catch {
     return null;
   }
+}
+
+/** No specific weak topic — used to backfill a session back up to its
+ * original length after dedup removes a question, so "start adaptive
+ * practice" always delivers the count it advertised. Alternates
+ * quant/verbal so several backfills in a row don't lopside the session. */
+async function fetchBackfillQuestion(section: Section, excludeQuestionTexts: string[]): Promise<Question | null> {
+  try {
+    const res = await fetch("/api/generate-question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ section, difficulty: "medium", excludeQuestionTexts }),
+    });
+    const data = await res.json();
+    return data.question ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Strict unique filter by id AND by body text — two different stored
+ * questions can legitimately carry the exact same wording (a data-quality
+ * issue in the seeded bank, not something either the review queue or the
+ * generation dedup logic can see on its own), so id-only dedup isn't
+ * enough to guarantee no repeated question text within one session. */
+function dedupeQuestions(questions: Question[]): Question[] {
+  const seenIds = new Set<string>();
+  const seenBodies = new Set<string>();
+  const unique: Question[] = [];
+  for (const q of questions) {
+    const body = q.body.trim();
+    if (seenIds.has(q.id) || seenBodies.has(body)) continue;
+    seenIds.add(q.id);
+    seenBodies.add(body);
+    unique.push(q);
+  }
+  return unique;
 }
 
 export default function AdaptivePracticePage() {
@@ -89,19 +131,37 @@ export default function AdaptivePracticePage() {
     const reinforcementResults = await Promise.all(weakTopicsWithBodies.map(fetchReinforcementQuestion));
     const reinforcementQuestions = reinforcementResults.filter((q): q is Question => q !== null);
 
-    if (reinforcementQuestions.length > 0) cacheQuestions(reinforcementQuestions);
+    const newlyFetched: Question[] = [...reinforcementQuestions];
 
-    // Defensive final dedup, independent of the exclude list above — a
-    // session must never contain the same question (by id or by exact body
-    // match) twice, whether it came from the review queue or from a
-    // reinforcement fetch.
-    const seenIds = new Set(dueQuestions.map((q) => q.id));
-    const seenBodies = new Set(dueBodies);
-    const dedupedReinforcement = reinforcementQuestions.filter(
-      (q) => !seenIds.has(q.id) && !seenBodies.has(q.body)
-    );
+    // Global session dedup — strict unique filter by id AND body, run right
+    // before the session is finalized. Two different stored questions can
+    // legitimately share the exact same body (a data-quality issue in the
+    // seeded bank), which the per-fetch exclude lists above can't catch
+    // since they only compare against bodies the caller already knew about.
+    const targetCount = dueQuestions.length + reinforcementQuestions.length;
+    let sessionPool = dedupeQuestions([...dueQuestions, ...reinforcementQuestions]);
 
-    setSessionQuestions([...dueQuestions, ...dedupedReinforcement]);
+    // If dedup dropped the session below its original length, backfill from
+    // the general quant/verbal pool (no specific weak topic) until it's
+    // restored — excluding every question already selected so far, so a
+    // backfill can't reintroduce the very duplicate that was just removed.
+    let backfillAttempts = 0;
+    while (sessionPool.length < targetCount && backfillAttempts < MAX_BACKFILL_ATTEMPTS) {
+      const section = BACKFILL_SECTIONS[backfillAttempts % BACKFILL_SECTIONS.length];
+      backfillAttempts += 1;
+      const candidate = await fetchBackfillQuestion(
+        section,
+        sessionPool.map((q) => q.body)
+      );
+      if (!candidate) continue;
+      const beforeCount = sessionPool.length;
+      sessionPool = dedupeQuestions([...sessionPool, candidate]);
+      if (sessionPool.length > beforeCount) newlyFetched.push(candidate);
+    }
+
+    if (newlyFetched.length > 0) cacheQuestions(newlyFetched);
+
+    setSessionQuestions(sessionPool);
     setLoadingReinforcement(false);
     setStarted(true);
   }
