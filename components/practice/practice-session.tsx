@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { recordAttempt } from "@/lib/storage";
+import { recordAttempt, updateAttemptAnswer } from "@/lib/storage";
+import { markAttemptsDirty } from "@/lib/cloud-sync";
 import { PracticeHeader } from "@/components/practice/practice-header";
 import { QuestionCard } from "@/components/practice/question-card";
 import { AnswerOptions } from "@/components/practice/answer-options";
@@ -39,7 +40,15 @@ interface PracticeSessionProps {
  * Correctness and explanations are deliberately withheld while questions
  * are in progress — answers are recorded silently as the student
  * progresses, and only revealed together on a results screen once the
- * whole batch is answered (see components/practice/session-results.tsx). */
+ * whole batch is answered (see components/practice/session-results.tsx).
+ *
+ * Navigation is not one-way: the student can go back to a previous
+ * question and change their answer. Answers and the attempt each one was
+ * recorded under are tracked per question index (not just for "the current
+ * question"), so revisiting a question updates its existing attempt in
+ * place — via updateAttemptAnswer() — instead of recording a second attempt
+ * for the same question, which would double-count it in accuracy/mastery
+ * stats and the spaced-repetition queue. */
 export function PracticeSession({
   questions,
   sectionLabel,
@@ -52,8 +61,14 @@ export function PracticeSession({
   const [sessionId] = useState(() => crypto.randomUUID());
   const [phase, setPhase] = useState<"question" | "summary">("question");
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [results, setResults] = useState<SessionResultEntry[]>([]);
+  // Parallel to `questions`: the selected choice (or null) and the resulting
+  // SessionResultEntry (once committed) for each index, so answering out of
+  // strict forward order — i.e. going back and changing something — never
+  // loses or duplicates a recorded attempt.
+  const [answers, setAnswers] = useState<(number | null)[]>(() => questions.map(() => null));
+  const [resultsByIndex, setResultsByIndex] = useState<(SessionResultEntry | null)[]>(() =>
+    questions.map(() => null)
+  );
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   // Casual practice is untimed by default — the clock still runs
@@ -81,7 +96,9 @@ export function PracticeSession({
   }, [currentIndex]);
 
   const currentQuestion = questions[currentIndex];
+  const isFirstQuestion = currentIndex === 0;
   const isLastQuestion = currentIndex === questions.length - 1;
+  const selected = answers[currentIndex];
   const answered = selected !== null;
   const canProceed = answered;
 
@@ -89,57 +106,80 @@ export function PracticeSession({
     // Clicking the already-selected option again deselects it, rather than
     // being a no-op — the student can back out of an answer entirely, not
     // just switch between choices.
-    if (selected === index) {
-      setSelected(null);
-      return;
+    const nextValue = selected === index ? null : index;
+    if (nextValue !== null) {
+      answerTimeTakenRef.current = Math.max(
+        1,
+        Math.round((Date.now() - questionStartTimeRef.current) / 1000)
+      );
     }
-    answerTimeTakenRef.current = Math.max(
-      1,
-      Math.round((Date.now() - questionStartTimeRef.current) / 1000)
-    );
-    setSelected(index);
+    setAnswers((prev) => prev.map((a, i) => (i === currentIndex ? nextValue : a)));
   }
 
-  /** Records whatever is currently selected (if anything) as an attempt.
-   * Shared by the normal "next question" advance and by early submission,
-   * so a question the student already answered right before hitting
-   * "הגש תרגול" is never silently dropped. */
-  function recordCurrentAnswer(): SessionResultEntry | null {
-    if (selected === null) return null;
+  /** Records or updates whatever is currently selected for `index` as an
+   * attempt — a fresh recordAttempt() the first time this index is left,
+   * updateAttemptAnswer() on every revisit after that. A no-op if nothing
+   * is selected, or if the selection hasn't changed since it was last
+   * committed, so navigating back and forth without editing anything never
+   * writes redundantly. */
+  function commitAnswer(index: number): SessionResultEntry | null {
+    const answer = answers[index];
+    if (answer === null) return null;
+
+    const question = questions[index];
+    const isCorrect = answer === question.correctAnswer;
+    const existing = resultsByIndex[index];
+
+    if (existing) {
+      if (existing.attempt.chosenAnswer === answer) return existing;
+      const timeTakenSeconds = answerTimeTakenRef.current;
+      updateAttemptAnswer(existing.attempt.id, { chosenAnswer: answer, isCorrect, timeTakenSeconds });
+      markAttemptsDirty([existing.attempt.id]);
+      const updatedEntry: SessionResultEntry = {
+        question,
+        attempt: { ...existing.attempt, chosenAnswer: answer, isCorrect, timeTakenSeconds },
+      };
+      setResultsByIndex((prev) => prev.map((r, i) => (i === index ? updatedEntry : r)));
+      return updatedEntry;
+    }
+
     const attempt = recordAttempt({
       sessionId,
-      questionId: currentQuestion.id,
-      chosenAnswer: selected,
-      isCorrect: selected === currentQuestion.correctAnswer,
+      questionId: question.id,
+      chosenAnswer: answer,
+      isCorrect,
       timeTakenSeconds: answerTimeTakenRef.current,
       // Not asked live anymore — mistakes are tagged from the results
       // screen, where the student can actually see what went wrong.
       selfReportedError: null,
     });
-    return { question: currentQuestion, attempt };
+    const entry: SessionResultEntry = { question, attempt };
+    setResultsByIndex((prev) => prev.map((r, i) => (i === index ? entry : r)));
+    return entry;
+  }
+
+  function handlePrev() {
+    if (isFirstQuestion) return;
+    commitAnswer(currentIndex);
+    setCurrentIndex((i) => i - 1);
   }
 
   function handleNext() {
-    const entry = recordCurrentAnswer();
-    if (!entry) return;
-    setResults((prev) => [...prev, entry]);
-
+    commitAnswer(currentIndex);
     if (isLastQuestion) {
       setPhase("summary");
       return;
     }
     setCurrentIndex((i) => i + 1);
-    setSelected(null);
   }
 
-  // Any question at or after the current one that hasn't been answered yet
-  // — the current question only counts as "answered" once selected, even
-  // though its attempt isn't recorded until advancing/submitting.
-  const unansweredCount = questions.length - results.length - (selected !== null ? 1 : 0);
+  // Every index the student hasn't answered yet — reflects live selection
+  // state, not just what's been committed to storage, since forward
+  // progress already guarantees every earlier index is answered.
+  const unansweredCount = answers.filter((a) => a === null).length;
 
   function submitNow() {
-    const entry = recordCurrentAnswer();
-    setResults((prev) => (entry ? [...prev, entry] : prev));
+    commitAnswer(currentIndex);
     setConfirmingSubmit(false);
     setPhase("summary");
   }
@@ -159,6 +199,8 @@ export function PracticeSession({
       router.push(finishHref);
     }
   }
+
+  const results = resultsByIndex.filter((r): r is SessionResultEntry => r !== null);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -207,16 +249,15 @@ export function PracticeSession({
                 onSelect={handleSelect}
               />
 
-              {answered && (
-                <Button
-                  size="lg"
-                  disabled={!canProceed}
-                  onClick={handleNext}
-                  className="self-end"
-                >
+              <div className="flex items-center justify-between gap-3">
+                <Button size="lg" variant="outline" disabled={isFirstQuestion} onClick={handlePrev}>
+                  הקודם
+                </Button>
+
+                <Button size="lg" disabled={!canProceed} onClick={handleNext}>
                   {isLastQuestion ? "הגש וסיים" : "השאלה הבאה"}
                 </Button>
-              )}
+              </div>
             </>
           )}
         </main>

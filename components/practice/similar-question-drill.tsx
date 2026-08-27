@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,13 @@ type DrillState =
 export function SimilarQuestionDrill({ question }: { question: Question }) {
   const [state, setState] = useState<DrillState>({ kind: "idle" });
   const [sessionId] = useState(() => crypto.randomUUID());
+  // Every body already shown in this drill (the original mistake plus every
+  // AI-generated follow-up so far) — passed as the exclude list on each
+  // fetch so repeated "עוד שאלה דומה" clicks can't regenerate a question
+  // already served earlier in the same drill. Bug fix: this used to only
+  // ever exclude the original question, so the same follow-up question
+  // could resurface a couple of clicks later.
+  const seenBodiesRef = useRef<string[]>([question.body]);
 
   async function start() {
     setState({ kind: "loading" });
@@ -47,7 +54,7 @@ export function SimilarQuestionDrill({ question }: { question: Question }) {
           topic: question.topic,
           subtopic: question.subtopic,
           difficulty: difficultyFromNumeric(question.difficulty),
-          excludeQuestionTexts: [question.body],
+          excludeQuestionTexts: seenBodiesRef.current,
         }),
       });
       const data = await res.json();
@@ -55,6 +62,7 @@ export function SimilarQuestionDrill({ question }: { question: Question }) {
         setState({ kind: "error" });
         return;
       }
+      seenBodiesRef.current = [...seenBodiesRef.current, data.question.body];
       cacheQuestions([data.question]);
       setState({ kind: "ready", question: data.question, selected: null, startedAt: Date.now() });
     } catch {

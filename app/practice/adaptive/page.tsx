@@ -71,13 +71,19 @@ export default function AdaptivePracticePage() {
   async function handleStart() {
     setLoadingReinforcement(true);
 
+    // The due-review questions are already going into this session, so they
+    // must be excluded from every reinforcement fetch too — otherwise a
+    // freshly-generated question could duplicate one already sitting in
+    // dueQuestions for the same subtopic.
+    const dueBodies = dueQuestions.map((q) => q.body);
+
     const weakTopicsWithBodies: WeakTopicWithBodies[] = weakTopics.map((t) => {
       const bodiesForTopic = attempts
         .map((a) => getQuestion(a.questionId))
         .filter((q): q is Question => q !== undefined && q.section === t.section && q.topic === t.topic && q.subtopic === t.subtopic)
         .map((q) => q.body)
         .slice(0, 8);
-      return { ...t, recentBodies: bodiesForTopic };
+      return { ...t, recentBodies: [...bodiesForTopic, ...dueBodies] };
     });
 
     const reinforcementResults = await Promise.all(weakTopicsWithBodies.map(fetchReinforcementQuestion));
@@ -85,7 +91,17 @@ export default function AdaptivePracticePage() {
 
     if (reinforcementQuestions.length > 0) cacheQuestions(reinforcementQuestions);
 
-    setSessionQuestions([...dueQuestions, ...reinforcementQuestions]);
+    // Defensive final dedup, independent of the exclude list above — a
+    // session must never contain the same question (by id or by exact body
+    // match) twice, whether it came from the review queue or from a
+    // reinforcement fetch.
+    const seenIds = new Set(dueQuestions.map((q) => q.id));
+    const seenBodies = new Set(dueBodies);
+    const dedupedReinforcement = reinforcementQuestions.filter(
+      (q) => !seenIds.has(q.id) && !seenBodies.has(q.body)
+    );
+
+    setSessionQuestions([...dueQuestions, ...dedupedReinforcement]);
     setLoadingReinforcement(false);
     setStarted(true);
   }

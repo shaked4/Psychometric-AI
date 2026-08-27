@@ -95,6 +95,33 @@ export function updateAttemptTag(attemptId: string, tag: SelfReportedError): voi
   for (const listener of listeners) listener();
 }
 
+export interface UpdateAttemptAnswerInput {
+  chosenAnswer: number;
+  isCorrect: boolean;
+  timeTakenSeconds: number;
+}
+
+/** Overwrites an already-recorded attempt's answer in place — used when a
+ * student navigates back to a previous question in a practice session and
+ * changes their answer. Keeps exactly one attempt per question per session
+ * (rather than accumulating a new attempt on every revisit), so accuracy,
+ * spaced-repetition scheduling, and topic mastery aren't skewed by
+ * navigation. Callers should also call markAttemptsDirty() from
+ * lib/cloud-sync.ts afterward, same as updateAttemptTag(). */
+export function updateAttemptAnswer(attemptId: string, input: UpdateAttemptAnswerInput): Attempt | null {
+  if (!isBrowser()) return null;
+
+  let updated: Attempt | null = null;
+  const attempts = getAttempts().map((a) => {
+    if (a.id !== attemptId) return a;
+    updated = { ...a, ...input };
+    return updated;
+  });
+  localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(attempts));
+  for (const listener of listeners) listener();
+  return updated;
+}
+
 /** Merges attempts pulled from Supabase (see lib/cloud-sync.ts) into the
  * local log, skipping any id already present — this is what restores a
  * user's history on a new device after signing in. */
