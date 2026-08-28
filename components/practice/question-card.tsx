@@ -7,20 +7,24 @@ interface QuestionCardProps {
   question: Question;
 }
 
+/** Deliberately flatter and more spacious than the shared .surface-card
+ * shadow treatment — the question itself is the one thing on this screen
+ * that should feel calm and unhurried, not competing visually with the
+ * header/answer options around it (Task: minimalist practice refactor). */
 export function QuestionCard({ question }: QuestionCardProps) {
   const dir = question.section === "english" ? "ltr" : undefined;
 
   return (
-    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-7 shadow-sm">
+    <div className="flex flex-col gap-6 rounded-xl border border-border/60 bg-card p-8">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <span className="rounded-full bg-muted px-2.5 py-1">{question.topic}</span>
-        <span className="rounded-full bg-muted px-2.5 py-1">{question.subtopic}</span>
+        <span className="rounded-full bg-muted/70 px-2.5 py-1">{question.topic}</span>
+        <span className="rounded-full bg-muted/70 px-2.5 py-1">{question.subtopic}</span>
       </div>
 
       {question.passage && (
         <div
           dir={dir}
-          className="rounded-lg bg-muted/60 p-4 text-base leading-relaxed text-muted-foreground"
+          className="rounded-lg bg-muted/50 p-5 text-base leading-relaxed text-muted-foreground"
         >
           <MathText text={question.passage} />
         </div>

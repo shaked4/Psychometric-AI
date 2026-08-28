@@ -41,20 +41,22 @@ export function AnswerOptions({ choices, selected, section, onSelect }: AnswerOp
             type="button"
             onClick={() => onSelect(index)}
             className={cn(
-              "flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-5 py-4 text-start transition",
-              isSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-muted/60"
+              "flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-6 py-5 text-start transition-all duration-150",
+              isSelected
+                ? "border-primary bg-primary/10"
+                : "border-border/70 hover:border-primary/40 hover:bg-muted/40"
             )}
           >
-            <span className="flex items-center gap-3">
+            <span className="flex items-center gap-3.5">
               <span
                 className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-medium",
-                  isSelected ? "border-primary text-primary" : "border-border text-muted-foreground"
+                  "flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-medium transition-colors",
+                  isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground"
                 )}
               >
                 {LETTERS[index]}
               </span>
-              <span dir={dir} className="text-base">
+              <span dir={dir} className="text-base leading-relaxed">
                 <MathText text={choice} />
               </span>
             </span>

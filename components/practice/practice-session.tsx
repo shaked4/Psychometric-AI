@@ -227,13 +227,13 @@ export function PracticeSession({
 
       <div
         className={cn(
-          "mx-auto flex w-full flex-1 gap-6 px-6 py-8",
+          "mx-auto flex w-full flex-1 gap-6 px-6 py-10",
           sidebar ? "max-w-2xl lg:max-w-5xl" : "max-w-2xl"
         )}
       >
         {sidebar}
 
-        <main className="flex w-full flex-1 flex-col gap-6">
+        <main className="flex w-full flex-1 flex-col gap-7">
           {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
 
           {phase === "summary" ? (

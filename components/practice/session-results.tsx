@@ -39,8 +39,8 @@ function ResultRow({ entry, index }: { entry: SessionResultEntry; index: number 
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-sm",
-        attempt.isCorrect ? "border-border" : "border-red-600/20"
+        "flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-6",
+        !attempt.isCorrect && "border-red-600/20"
       )}
     >
       <button
@@ -71,13 +71,19 @@ function ResultRow({ entry, index }: { entry: SessionResultEntry; index: number 
       </button>
 
       {expanded && (
-        <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <p dir={dir} className="text-base text-card-foreground">
+        <div className="flex flex-col gap-4 border-t border-border pt-4">
+          <p dir={dir} className="text-base leading-relaxed text-card-foreground">
             <MathText text={question.body} />
           </p>
 
-          <div className="flex flex-col gap-1.5 text-sm">
-            <div dir={dir} className="flex items-start gap-1.5">
+          <div className="flex flex-col gap-2 text-sm">
+            <div
+              dir={dir}
+              className={cn(
+                "flex items-start gap-1.5 rounded-lg px-3 py-2.5",
+                attempt.isCorrect ? "bg-green-500/5" : "bg-red-500/5"
+              )}
+            >
               <span className="shrink-0 text-muted-foreground">התשובה שלך:</span>
               <span
                 className={
@@ -90,7 +96,7 @@ function ResultRow({ entry, index }: { entry: SessionResultEntry; index: number 
               </span>
             </div>
             {!attempt.isCorrect && (
-              <div dir={dir} className="flex items-start gap-1.5">
+              <div dir={dir} className="flex items-start gap-1.5 rounded-lg bg-green-500/5 px-3 py-2.5">
                 <span className="shrink-0 text-muted-foreground">התשובה הנכונה:</span>
                 <span className="text-green-700 dark:text-green-400">
                   <MathText text={question.choices[question.correctAnswer]} />

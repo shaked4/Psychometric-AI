@@ -40,8 +40,8 @@ export function PracticeHeader({
   onSubmit,
 }: PracticeHeaderProps) {
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-      <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-4">
+    <header className="sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur">
+      <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-5">
         <Link
           href="/"
           aria-label="יציאה מהתרגול"

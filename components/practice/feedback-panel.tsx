@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2, Sparkles, Target, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, Loader2, Sparkles, Target, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
@@ -35,13 +35,13 @@ export function FeedbackPanel({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-xl border p-5",
+        "flex flex-col gap-5 rounded-xl border p-6",
         isCorrect
-          ? "border-green-600/30 bg-green-500/5"
-          : "border-red-600/30 bg-red-500/5"
+          ? "border-green-600/25 bg-green-500/5"
+          : "border-red-600/25 bg-red-500/5"
       )}
     >
-      <div className="flex items-center gap-2 text-base font-semibold">
+      <div className="flex items-center gap-2 text-lg font-semibold">
         {isCorrect ? (
           <CheckCircle2 className="size-5 text-green-600" />
         ) : (
@@ -58,12 +58,22 @@ export function FeedbackPanel({
         </span>
       </div>
 
-      <div className="text-sm leading-relaxed text-card-foreground">
-        <MathText text={explanation} />
+      {/* The explanation is the whole point of the review screen — it gets
+       * its own clearly-labeled, generously-spaced card rather than sitting
+       * as an undifferentiated paragraph, so working through it reads like
+       * a worked solution, not a caption. */}
+      <div className="flex flex-col gap-2.5 rounded-lg bg-background/60 p-5">
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <BookOpen className="size-3.5" />
+          הסבר מלא
+        </div>
+        <div className="text-base leading-loose text-card-foreground">
+          <MathText text={explanation} />
+        </div>
       </div>
 
       {!isCorrect && (
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <div className="flex flex-col gap-2 border-t border-border pt-5">
           <p className="text-sm font-medium text-muted-foreground">
             מה גרם לטעות, לדעתך?
           </p>
@@ -71,7 +81,7 @@ export function FeedbackPanel({
         </div>
       )}
 
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-border pt-5">
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
@@ -113,7 +123,7 @@ export function FeedbackPanel({
       </div>
 
       {!isCorrect && (
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <div className="flex flex-col gap-2 border-t border-border pt-5">
           <p className="text-sm font-medium text-muted-foreground">רוצים לבדוק שהבנתם? נסו שאלה דומה:</p>
           <SimilarQuestionDrill question={question} />
         </div>
