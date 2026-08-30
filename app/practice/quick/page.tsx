@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { getAttempts } from "@/lib/storage";
 import { cacheQuestions } from "@/lib/question-cache";
 import { QUICK_PRACTICE_MIX, QUICK_PRACTICE_TOTAL } from "@/lib/quick-practice";
-import type { Question, Section } from "@/types";
+import type { Question } from "@/types";
 
 type LoadState = "loading" | "ready" | "empty";
 
@@ -41,7 +41,7 @@ export default function QuickPracticePage() {
         const localSolvedIds = [...new Set(getAttempts().map((a) => a.questionId))];
 
         const responses = await Promise.all(
-          (Object.entries(QUICK_PRACTICE_MIX) as [Section, number][]).map(([section, count]) =>
+          (Object.entries(QUICK_PRACTICE_MIX) as ["quant" | "verbal", number][]).map(([section, count]) =>
             fetch("/api/exam/allocate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -93,7 +93,7 @@ export default function QuickPracticePage() {
           <>
             <Loader2 className="size-8 animate-spin text-primary" />
             <p className="text-base font-medium text-foreground">מכינים {QUICK_PRACTICE_TOTAL} שאלות מגוונות...</p>
-            <p className="text-sm text-muted-foreground">כמותי, מילולי ואמירנט — כמה שאלות, בלי לחץ, בלי שעון</p>
+            <p className="text-sm text-muted-foreground">כמותי ומילולי — כמה שאלות, בלי לחץ, בלי שעון</p>
           </>
         ) : (
           <>
