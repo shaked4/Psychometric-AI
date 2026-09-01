@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronDown, Loader2, Sparkles, XCircle } from "lucide-re
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
+import { MarkdownText } from "@/components/practice/markdown-text";
 import { useTutorExplain } from "@/lib/use-tutor-explain";
 import { ERROR_REASON_LABELS, SECTION_LABELS } from "@/lib/stats";
 import type { Attempt, Question } from "@/types";
@@ -107,8 +108,11 @@ export function HistoryAttemptCard({ attempt, question }: HistoryAttemptCardProp
 
           {expanded && (
             <div className="mt-3 flex flex-col gap-3">
-              <div className="rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
-                <MathText text={question.explanation} />
+              <div
+                dir={dir}
+                className={cn("rounded-lg bg-muted/50 p-3 text-sm text-card-foreground", dir === "ltr" && "text-left")}
+              >
+                <MarkdownText text={question.explanation} />
               </div>
 
               <Button
@@ -129,9 +133,12 @@ export function HistoryAttemptCard({ attempt, question }: HistoryAttemptCardProp
                 </div>
               )}
 
+              {/* The tutor always replies in Hebrew regardless of
+               * question.section (see app/api/tutor/route.ts) — unlike the
+               * explanation above, this never needs LTR wrapping. */}
               {reply && !loading && (
                 <div className="rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
-                  <MathText text={reply} />
+                  <MarkdownText text={reply} />
                 </div>
               )}
             </div>

@@ -54,7 +54,7 @@ export default function PostMortemPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pb-10 pt-14">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">תחקור מעמיק</h1>
         <p className="mt-1 text-muted-foreground">
@@ -73,7 +73,7 @@ export default function PostMortemPage() {
       <AnalysisPanel state={analysisState} onRun={runAnalysis} />
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold">שאלות לתחקור</h2>
+        <h2 className="mb-3 scroll-mt-24 text-lg font-semibold">שאלות לתחקור</h2>
         <MistakeReviewList items={qualifying} />
       </div>
     </main>

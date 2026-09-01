@@ -125,7 +125,7 @@ export function NavBar() {
           </DropdownMenu>
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex h-9 shrink-0 items-center ms-2">
           {CLERK_ENABLED ? <ClerkAuthSection /> : <GuestModeBadge />}
         </div>
       </div>

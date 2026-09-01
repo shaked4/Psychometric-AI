@@ -5,6 +5,7 @@ import { Loader2, MessageCircle, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
+import { MarkdownText } from "@/components/practice/markdown-text";
 import type { Question, SelfReportedError } from "@/types";
 
 interface ChatMessage {
@@ -24,6 +25,9 @@ export function TutorChatDrawer({ question, chosenAnswer, selfReportedError }: T
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Unlike question.body/explanation, the tutor always replies in Hebrew
+  // regardless of question.section (see app/api/tutor/route.ts's system
+  // prompt) — no dir="ltr" needed here even for English-section questions.
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -116,7 +120,7 @@ export function TutorChatDrawer({ question, chosenAnswer, selfReportedError }: T
                         : "self-start bg-muted text-foreground"
                     )}
                   >
-                    <MathText text={m.content} />
+                    {m.role === "assistant" ? <MarkdownText text={m.content} /> : <MathText text={m.content} />}
                   </div>
                 ))}
                 {loading && (

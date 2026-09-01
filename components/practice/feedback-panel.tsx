@@ -3,7 +3,7 @@
 import { BookOpen, CheckCircle2, Loader2, Sparkles, Target, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MathText } from "@/components/practice/math-text";
+import { MarkdownText } from "@/components/practice/markdown-text";
 import { ErrorTagPicker } from "@/components/post-mortem/error-tag-picker";
 import { SimilarQuestionDrill } from "@/components/practice/similar-question-drill";
 import { useTutorExplain } from "@/lib/use-tutor-explain";
@@ -31,6 +31,7 @@ export function FeedbackPanel({
     chosenAnswer,
     selfReportedError
   );
+  const dir = question.section === "english" ? "ltr" : undefined;
 
   return (
     <div
@@ -67,8 +68,11 @@ export function FeedbackPanel({
           <BookOpen className="size-3.5" />
           הסבר מלא
         </div>
-        <div className="text-base leading-loose text-card-foreground">
-          <MathText text={explanation} />
+        <div
+          dir={dir}
+          className={cn("text-base leading-loose text-card-foreground", dir === "ltr" && "text-left")}
+        >
+          <MarkdownText text={explanation} />
         </div>
       </div>
 
@@ -115,9 +119,12 @@ export function FeedbackPanel({
           </div>
         )}
 
+        {/* The tutor always replies in Hebrew regardless of question.section
+         * (see app/api/tutor/route.ts's system prompt) — unlike `explanation`
+         * above, this never needs LTR wrapping. */}
         {aiReply && !loading && (
           <div className="mt-3 rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
-            <MathText text={aiReply} />
+            <MarkdownText text={aiReply} />
           </div>
         )}
       </div>

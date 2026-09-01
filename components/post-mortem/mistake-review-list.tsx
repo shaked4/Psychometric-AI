@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronDown, Clock, Loader2, Sparkles, Target, XCircle } 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MathText } from "@/components/practice/math-text";
+import { MarkdownText } from "@/components/practice/markdown-text";
 import { ErrorTagPicker } from "@/components/post-mortem/error-tag-picker";
 import { SimilarQuestionDrill } from "@/components/practice/similar-question-drill";
 import { useTutorExplain } from "@/lib/use-tutor-explain";
@@ -107,8 +108,11 @@ function MistakeReviewCard({ attempt, question, isSlow }: QualifyingAttempt) {
 
         {expanded && (
           <div className="mt-3 flex flex-col gap-3">
-            <div className="rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
-              <MathText text={question.explanation} />
+            <div
+              dir={dir}
+              className={cn("rounded-lg bg-muted/50 p-3 text-sm text-card-foreground", dir === "ltr" && "text-left")}
+            >
+              <MarkdownText text={question.explanation} />
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -144,9 +148,12 @@ function MistakeReviewCard({ attempt, question, isSlow }: QualifyingAttempt) {
               </div>
             )}
 
+            {/* The tutor always replies in Hebrew regardless of
+             * question.section (see app/api/tutor/route.ts) — unlike the
+             * explanation above, this never needs LTR wrapping. */}
             {reply && !loading && (
               <div className="rounded-lg bg-muted/50 p-3 text-sm text-card-foreground">
-                <MathText text={reply} />
+                <MarkdownText text={reply} />
               </div>
             )}
 
